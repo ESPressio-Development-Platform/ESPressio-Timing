@@ -1,6 +1,5 @@
 #pragma once
 
-#include <Arduino.h>
 #include <cstdint>
 #include <functional>
 
@@ -18,7 +17,7 @@ namespace ESPressio {
             // Methods
 
                 /// `GetTime` returns the current time in the Clock's Unsigned Base Type.
-                virtual UBaseType_t GetTime() = 0;
+                virtual unsigned int GetTime() = 0;
         };
 
         /*
@@ -31,7 +30,7 @@ namespace ESPressio {
             // Methods
 
                 /// `SetTime` sets the current time in the Clock's Unsigned Base Type.
-                virtual void SetTime(UBaseType_t time) = 0;
+                virtual void SetTime(unsigned int time) = 0;
         };
 
     }

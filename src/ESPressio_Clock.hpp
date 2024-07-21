@@ -1,7 +1,5 @@
 #pragma once
 
-#include <Arduino.h>
-
 #include "ESPressio_IClock.hpp"
 
 #ifndef ESPRESSIO_TIMING_DEFAULT_PRECISION
