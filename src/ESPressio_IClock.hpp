@@ -1,36 +1,42 @@
 #pragma once
 
 #include <cstdint>
-#include <functional>
+
+#include <ESPressio_Time.hpp>
 
 namespace ESPressio {
 
     namespace Timing {
 
+        typedef uint64_t ClockTick;
+        typedef Units::Time<uint64_t, Units::Nano> ClockTime;
+
+        static constexpr ClockTick NanosecondsPerMicrosecond = 1000ULL;
+        static constexpr ClockTick NanosecondsPerMillisecond = 1000000ULL;
+        static constexpr ClockTick NanosecondsPerSecond = 1000000000ULL;
+
         /*
-            `IClock` is a common Interface for all Clock Types provided by this library.
-            You can use it to reference any Clock Type without knowing the actual type.
+            `IClock` is the common interface for every clock in this library.
+            Values use the ESPressio Units `Time` context. Their runtime order
+            of magnitude represents the clock's actual precision.
         */
         class IClock {
             public:
+            // Destructor
 
-            // Methods
+                virtual ~IClock() { }
 
-                /// `GetTime` returns the current time in the Clock's Unsigned Base Type.
-                virtual unsigned int GetTime() = 0;
+            // Getters
+
+                virtual ClockTime GetTime() const = 0;
+                virtual ClockTime GetResolution() const = 0;
         };
 
-        /*
-            `IClockSettable` is a common Interface for all Clock Types that can be set.
-            You can use it to reference any Settable Clock Type without knowing the actual type.
-        */
-        class IClockSettable {
+        class IClockSettable : public virtual IClock {
             public:
+            // Setters
 
-            // Methods
-
-                /// `SetTime` sets the current time in the Clock's Unsigned Base Type.
-                virtual void SetTime(unsigned int time) = 0;
+                virtual void SetTime(ClockTime time) = 0;
         };
 
     }

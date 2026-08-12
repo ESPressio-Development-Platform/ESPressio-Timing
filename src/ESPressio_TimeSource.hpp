@@ -1,0 +1,125 @@
+#pragma once
+
+#include <cstdint>
+#include <limits>
+
+#include "ESPressio_IClock.hpp"
+#include "ESPressio_ITimeSource.hpp"
+
+#if defined(ESP32)
+    #include <esp_timer.h>
+#elif defined(ARDUINO)
+    #include <Arduino.h>
+#else
+    #include <chrono>
+#endif
+
+namespace ESPressio {
+
+    namespace Timing {
+
+        namespace Internal {
+
+            inline ClockTick TicksToNanoseconds(
+                uint64_t ticks,
+                uint64_t ticksPerSecond
+            ) {
+                if (ticksPerSecond == 0) {
+                    return 0;
+                }
+
+                const uint64_t wholeSeconds = ticks / ticksPerSecond;
+                const uint64_t remainingTicks = ticks % ticksPerSecond;
+                const uint64_t maximum =
+                    std::numeric_limits<uint64_t>::max();
+
+                if (wholeSeconds > maximum / NanosecondsPerSecond) {
+                    return maximum;
+                }
+
+                const uint64_t wholeNanoseconds =
+                    wholeSeconds * NanosecondsPerSecond;
+                const uint64_t remainingNanoseconds =
+                    remainingTicks <= maximum / NanosecondsPerSecond
+                        ? (remainingTicks * NanosecondsPerSecond) /
+                            ticksPerSecond
+                        : static_cast<uint64_t>(
+                            (static_cast<long double>(remainingTicks) *
+                                NanosecondsPerSecond) /
+                            ticksPerSecond
+                        );
+
+                if (remainingNanoseconds > maximum - wholeNanoseconds) {
+                    return maximum;
+                }
+
+                return wholeNanoseconds + remainingNanoseconds;
+            }
+
+            inline ClockTick GetSourceResolution(
+                uint64_t ticksPerSecond
+            ) {
+                if (ticksPerSecond == 0) {
+                    return 0;
+                }
+
+                return ticksPerSecond >= NanosecondsPerSecond
+                    ? 1
+                    : (NanosecondsPerSecond + ticksPerSecond - 1) /
+                        ticksPerSecond;
+            }
+
+        }
+
+        class HighResolutionTimeSource : public ITimeSource {
+            #if defined(ARDUINO) && !defined(ESP32)
+            private:
+                mutable uint32_t _lastTick = 0;
+                mutable uint64_t _tickEpoch = 0;
+            #endif
+
+            public:
+            // Getters
+
+                uint64_t GetTicks() const override {
+                    #if defined(ESP32)
+                        return static_cast<uint64_t>(esp_timer_get_time());
+                    #elif defined(ARDUINO)
+                        const uint32_t currentTick = micros();
+
+                        if (currentTick < _lastTick) {
+                            _tickEpoch += (1ULL << 32);
+                        }
+
+                        _lastTick = currentTick;
+                        return _tickEpoch + currentTick;
+                    #else
+                        typedef std::chrono::steady_clock SourceClock;
+                        return static_cast<uint64_t>(
+                            SourceClock::now().time_since_epoch().count()
+                        );
+                    #endif
+                }
+
+                uint64_t GetTicksPerSecond() const override {
+                    #if defined(ESP32) || defined(ARDUINO)
+                        return 1000000ULL;
+                    #else
+                        typedef std::chrono::steady_clock SourceClock;
+                        return static_cast<uint64_t>(
+                            SourceClock::period::den / SourceClock::period::num
+                        );
+                    #endif
+                }
+
+            // Static Methods
+
+                static ITimeSource* GetInstance() {
+                    static HighResolutionTimeSource instance;
+                    return &instance;
+                }
+        };
+
+    }
+
+}

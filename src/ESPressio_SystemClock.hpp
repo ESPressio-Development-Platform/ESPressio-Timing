@@ -1,42 +1,114 @@
 #pragma once
 
-#include <ESPressio_ISystemClock.hpp>
+#include <cstddef>
+#include <utility>
+
+#include "ESPressio_Clock.hpp"
+#include "ESPressio_ISystemClock.hpp"
+
+#ifndef ESPRESSIO_TIMING_MAX_CALLBACKS
+    #define ESPRESSIO_TIMING_MAX_CALLBACKS 8
+#endif
 
 namespace ESPressio {
 
     namespace Timing {
 
-        class SystemClock : public ISystemClock {
-            protected:
-                SystemClock() {
+        class SystemClock :
+            public ClockSettableBase,
+            public ISystemClock {
+            private:
+                struct ScheduledCallback {
+                    ClockTick time = 0;
+                    ClockCallback callback = nullptr;
+                };
 
-                }
+                ScheduledCallback
+                    _callbacks[ESPRESSIO_TIMING_MAX_CALLBACKS];
+
+                explicit SystemClock(
+                    ITimeSource* timeSource =
+                        HighResolutionTimeSource::GetInstance()
+                ) : ClockSettableBase(timeSource) { }
 
             public:
-                static ISystemClock* GetInstance() {
-                    static ISystemClock* instance = new SystemClock();
-                    return instance;
-                }
+            // Deleted Copy/Move
 
-            // Getters
+                SystemClock(const SystemClock&) = delete;
+                SystemClock& operator=(const SystemClock&) = delete;
+                SystemClock(SystemClock&&) = delete;
+                SystemClock& operator=(SystemClock&&) = delete;
 
-                uint64_t GetTime() {
-                    return 0; //TODO: Implement this
-                }
+            // Static Methods
 
-            // Setters
-
-                void SetTime(uint64_t time) {
-                    //TODO: Implement this
+                static SystemClock* GetInstance(
+                    ITimeSource* timeSource =
+                        HighResolutionTimeSource::GetInstance()
+                ) {
+                    static SystemClock instance(timeSource);
+                    return &instance;
                 }
 
             // Methods
 
-                void SetCallback(
-                    uint64_t time,
-                    std::function<void()> callback
+                bool TrySetCallback(
+                    ClockTime time,
+                    ClockCallback callback
                 ) {
-                    //TODO: Implement this
+                    if (!callback) {
+                        return false;
+                    }
+
+                    for (
+                        std::size_t index = 0;
+                        index < ESPRESSIO_TIMING_MAX_CALLBACKS;
+                        ++index
+                    ) {
+                        if (!_callbacks[index].callback) {
+                            _callbacks[index].time = GetNanoseconds(time);
+                            _callbacks[index].callback =
+                                std::move(callback);
+                            return true;
+                        }
+                    }
+
+                    return false;
+                }
+
+                void SetCallback(
+                    ClockTime time,
+                    ClockCallback callback
+                ) override {
+                    TrySetCallback(time, std::move(callback));
+                }
+
+                void Update() override {
+                    const ClockTick currentTime = GetNanoseconds(GetTime());
+
+                    for (
+                        std::size_t index = 0;
+                        index < ESPRESSIO_TIMING_MAX_CALLBACKS;
+                        ++index
+                    ) {
+                        if (_callbacks[index].callback &&
+                            currentTime >= _callbacks[index].time) {
+                            ClockCallback callback = std::move(
+                                _callbacks[index].callback
+                            );
+                            _callbacks[index] = ScheduledCallback();
+                            callback();
+                        }
+                    }
+                }
+
+                void ClearCallbacks() override {
+                    for (
+                        std::size_t index = 0;
+                        index < ESPRESSIO_TIMING_MAX_CALLBACKS;
+                        ++index
+                    ) {
+                        _callbacks[index] = ScheduledCallback();
+                    }
                 }
         };
 

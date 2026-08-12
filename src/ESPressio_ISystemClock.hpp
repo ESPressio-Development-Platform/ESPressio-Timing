@@ -1,37 +1,28 @@
 #pragma once
 
-#include <ESPressio_IClock.hpp>
+#include <functional>
+
+#include "ESPressio_IClock.hpp"
 
 namespace ESPressio {
 
     namespace Timing {
 
-        class ISystemClock {
+        class ISystemClock : public virtual IClockSettable {
             public:
+            // Type Defs
 
-            // Getters
-
-                /*
-                    Get the time of the global clock.
-                */
-                virtual uint64_t GetTime() = 0;
-
-            // Setters
-
-                /*
-                    Set the time of the global clock.
-                */
-                virtual void SetTime(uint64_t time) = 0;
+                typedef std::function<void()> ClockCallback;
 
             // Methods
 
-                /*
-                    Set a callback to be executed at the given time
-                */
                 virtual void SetCallback(
-                    uint64_t time, /* The time at which the callback should be invoked */
-                    std::function<void()> callback /* The callback to be invoked */
+                    ClockTime time,
+                    ClockCallback callback
                 ) = 0;
+
+                virtual void Update() = 0;
+                virtual void ClearCallbacks() = 0;
         };
 
     }
