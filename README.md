@@ -8,7 +8,7 @@ The latest Stable Version is [1.0.0](https://github.com/Flowduino/ESPressio-Timi
 
 ## Compatibility
 
-The interfaces and clocks use portable Arduino C++11 and ESPressio Units. They may compile on any Arduino target with the required standard-library support, including ESP32, ESP8266, RP2040, SAMD, STM32, Renesas, Teensy, and AVR toolchains.
+The interfaces and clocks use Arduino C++11, ESPressio Units, and `std::mutex`. They may compile on Arduino targets whose toolchains provide those standard-library facilities, including ESP32 and many RP2040, SAMD, STM32, Renesas, and Teensy cores. Targets with incomplete C++ threading support—commonly classic AVR and some ESP8266 toolchains—are not compatible with the thread-safe implementation without supplying an equivalent mutex-capable standard library.
 
 The default time source selects the highest-resolution monotonic API available on each supported build:
 
@@ -102,6 +102,16 @@ NanosecondsPerSecond
 The clock chooses the finest SI magnitude justified by its resolution. `GetResolution()` returns the same Time-unit type, including values such as `1 us`, `4 us`, or `1 s`. Non-decimal resolutions such as 12.5 nanoseconds remain represented in nanoseconds.
 
 All clock implementations share the same `IClock` interface. Code accepting an `IClock&` or `IClock*` can call `GetTime()` identically for `SystemClock`, `StopwatchClock`, and any concrete `RTCClockBase` descendant. For a system or RTC clock, the value is its current timestamp; for a stopwatch, it is the elapsed duration.
+
+## Thread Safety and Moment-of-Request Semantics
+
+All mutable clock state is synchronized. `SystemClock`, `StopwatchClock`, `RTCClockBase`, `GPTimerClock`, callback registration, RTC device I/O, and the generic Arduino rollover extension may be used concurrently from multiple tasks or standard threads while the referenced objects remain alive.
+
+Every `GetTime()` implementation captures the underlying hardware or framework counter **before** waiting for its clock-state mutex. The returned value therefore represents the instant at which the request sampled the time source, not the later instant at which lock contention ended. Conversion to ESPressio Units and formatting occur after that captured value has been secured.
+
+State-changing operations such as `Start()`, `Stop()`, `Reset()`, `SetTime()`, and RTC synchronization similarly capture one source value and use that same value throughout the atomic transition. Scheduled callbacks are removed from shared state under lock and invoked only after the lock is released, allowing callbacks to register or clear callbacks without deadlocking.
+
+Thread safety does not extend object lifetime: an application must not destroy a clock or injected `ITimeSource` while another task is using it. Clock state methods are task/thread-safe, not generally ISR-safe. Continue to defer `RTCClockBase::OnRTCInterrupt()` to task context as described below. The underlying ESP-IDF `gptimer_get_raw_count()` API is driver-thread-safe and ISR-capable, and `esp_timer_get_time()` is lock-free, but the higher-level clock state deliberately uses task-level mutexes.
 
 ## System Clock
 

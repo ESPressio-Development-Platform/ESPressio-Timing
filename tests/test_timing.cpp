@@ -1,6 +1,9 @@
 #include <cassert>
+#include <atomic>
 #include <cstdint>
+#include <thread>
 #include <type_traits>
+#include <vector>
 
 #include "ESPressio_Timing.hpp"
 
@@ -35,6 +38,38 @@ class ManualTimeSource : public ITimeSource {
 
         uint64_t GetTicksPerSecond() const override {
             return ticksPerSecond;
+        }
+};
+
+class ConcurrentTimeSource : public ITimeSource {
+    public:
+        std::atomic<uint64_t> ticks{0};
+        mutable std::atomic<uint32_t> readCount{0};
+
+        uint64_t GetTicks() const override {
+            const uint64_t capturedTicks = ticks.load(
+                std::memory_order_acquire
+            );
+            readCount.fetch_add(1, std::memory_order_release);
+            return capturedTicks;
+        }
+
+        uint64_t GetTicksPerSecond() const override {
+            return 1000000ULL;
+        }
+};
+
+class LockableStopwatchClock : public StopwatchClock {
+    public:
+        explicit LockableStopwatchClock(ITimeSource* source)
+            : StopwatchClock(true, source) { }
+
+        void LockState() {
+            _clockMutex.lock();
+        }
+
+        void UnlockState() {
+            _clockMutex.unlock();
         }
 };
 
@@ -183,11 +218,70 @@ static void TestCommonClockInterface() {
     assert(ReadClock(rtcClockInterface).orderOfMagnitude == Units::Base);
 }
 
+static void TestMomentOfRequestUnderContention() {
+    ConcurrentTimeSource source;
+    LockableStopwatchClock stopwatch(&source);
+    stopwatch.LockState();
+
+    source.ticks.store(100, std::memory_order_release);
+    const uint32_t initialReadCount = source.readCount.load(
+        std::memory_order_acquire
+    );
+    ClockTime result;
+
+    std::thread reader([&]() {
+        result = stopwatch.GetTime();
+    });
+
+    while (
+        source.readCount.load(std::memory_order_acquire) ==
+            initialReadCount
+    ) {
+        std::this_thread::yield();
+    }
+
+    // The reader has captured 100 us but is waiting for the state lock.
+    source.ticks.store(500, std::memory_order_release);
+    stopwatch.UnlockState();
+    reader.join();
+
+    assert(result.value == 100);
+    assert(result.orderOfMagnitude == Units::Micro);
+}
+
+static void TestConcurrentStopwatchAccess() {
+    ConcurrentTimeSource source;
+    StopwatchClock stopwatch(true, &source);
+    std::vector<std::thread> workers;
+
+    for (uint32_t worker = 0; worker < 4; ++worker) {
+        workers.emplace_back([&]() {
+            for (uint32_t iteration = 0; iteration < 1000; ++iteration) {
+                source.ticks.fetch_add(1, std::memory_order_acq_rel);
+                stopwatch.GetTime();
+
+                if ((iteration % 31) == 0) {
+                    stopwatch.Stop();
+                    stopwatch.Start();
+                }
+            }
+        });
+    }
+
+    for (std::thread& worker : workers) {
+        worker.join();
+    }
+
+    assert(stopwatch.GetTime().orderOfMagnitude == Units::Micro);
+}
+
 int main() {
     TestTickConversion();
     TestStopwatch();
     TestRTC();
     TestSystemCallbacks();
     TestCommonClockInterface();
+    TestMomentOfRequestUnderContention();
+    TestConcurrentStopwatchAccess();
     return 0;
 }

@@ -20,6 +20,11 @@ class String {
         }
 };
 
+inline uint32_t& ArduinoMicrosValue() {
+    static uint32_t value = 0;
+    return value;
+}
+
 inline uint32_t micros() {
-    return 0;
+    return ArduinoMicrosValue();
 }

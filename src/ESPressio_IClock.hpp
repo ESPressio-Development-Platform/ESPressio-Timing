@@ -18,7 +18,9 @@ namespace ESPressio {
         /*
             `IClock` is the common interface for every clock in this library.
             Values use the ESPressio Units `Time` context. Their runtime order
-            of magnitude represents the clock's actual precision.
+            of magnitude represents the clock's actual precision. GetTime()
+            implementations capture their time source before waiting for any
+            clock-state lock, preserving moment-of-request semantics.
         */
         class IClock {
             public:

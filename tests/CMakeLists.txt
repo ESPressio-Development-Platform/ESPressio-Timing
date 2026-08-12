@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.16)
 project(ESPressioTimingTests LANGUAGES CXX)
 
+find_package(Threads REQUIRED)
+
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -31,6 +33,12 @@ target_include_directories(
     ../src
     ../../ESPressio-Units/src
     ../../ESPressio-Units/tests/stubs
+)
+
+target_link_libraries(
+    espressio_timing_tests
+    PRIVATE
+    Threads::Threads
 )
 
 target_include_directories(

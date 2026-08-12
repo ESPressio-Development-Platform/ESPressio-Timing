@@ -1,5 +1,7 @@
 #pragma once
 
+#include <mutex>
+
 #include "ESPressio_Clock.hpp"
 #include "ESPressio_IStopwatchClock.hpp"
 
@@ -10,6 +12,9 @@ namespace ESPressio {
         class StopwatchClock :
             public ClockBase,
             public IStopwatchClock {
+            protected:
+                mutable std::mutex _clockMutex;
+
             private:
                 ClockTick _elapsedTime = 0;
                 ClockTick _startTime = 0;
@@ -31,37 +36,57 @@ namespace ESPressio {
             // Methods
 
                 void Start() override {
+                    const ClockTick sourceTime = GetSourceTime();
+                    std::lock_guard<std::mutex> lock(_clockMutex);
+
                     if (_isRunning) {
                         return;
                     }
 
-                    _startTime = GetSourceTime();
+                    _startTime = sourceTime;
                     _isRunning = true;
                 }
 
                 void Stop() override {
+                    const ClockTick sourceTime = GetSourceTime();
+                    std::lock_guard<std::mutex> lock(_clockMutex);
+
                     if (!_isRunning) {
                         return;
                     }
 
-                    _elapsedTime = GetNanoseconds(GetTime());
+                    const ClockTick currentInterval =
+                        sourceTime >= _startTime
+                            ? sourceTime - _startTime
+                            : 0;
+                    _elapsedTime = AddSaturated(
+                        _elapsedTime,
+                        currentInterval
+                    );
                     _isRunning = false;
                 }
 
                 void Reset() override {
+                    const ClockTick sourceTime = GetSourceTime();
+                    std::lock_guard<std::mutex> lock(_clockMutex);
                     _elapsedTime = 0;
-                    _startTime = GetSourceTime();
+                    _startTime = sourceTime;
                 }
 
                 void Restart() override {
+                    const ClockTick sourceTime = GetSourceTime();
+                    std::lock_guard<std::mutex> lock(_clockMutex);
                     _elapsedTime = 0;
-                    _startTime = GetSourceTime();
+                    _startTime = sourceTime;
                     _isRunning = true;
                 }
 
             // Getters
 
                 ClockTime GetTime() const override {
+                    const ClockTick sourceTime = GetSourceTime();
+                    std::lock_guard<std::mutex> lock(_clockMutex);
+
                     if (!_isRunning) {
                         return CreateClockTime(
                             _elapsedTime,
@@ -71,7 +96,6 @@ namespace ESPressio {
                         );
                     }
 
-                    const ClockTick sourceTime = GetSourceTime();
                     const ClockTick currentInterval =
                         sourceTime >= _startTime
                             ? sourceTime - _startTime
@@ -92,16 +116,19 @@ namespace ESPressio {
                 }
 
                 bool GetIsRunning() const override {
+                    std::lock_guard<std::mutex> lock(_clockMutex);
                     return _isRunning;
                 }
 
             // Setters
 
                 void SetTime(ClockTime time) override {
+                    const ClockTick sourceTime = GetSourceTime();
+                    std::lock_guard<std::mutex> lock(_clockMutex);
                     _elapsedTime = GetNanoseconds(time);
 
                     if (_isRunning) {
-                        _startTime = GetSourceTime();
+                        _startTime = sourceTime;
                     }
                 }
         };

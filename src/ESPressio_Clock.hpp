@@ -1,6 +1,7 @@
 #pragma once
 
 #include <limits>
+#include <mutex>
 
 #include "ESPressio_IClock.hpp"
 #include "ESPressio_ITimeSource.hpp"
@@ -140,6 +141,7 @@ namespace ESPressio {
             public ClockBase,
             public virtual IClockSettable {
             protected:
+                mutable std::mutex _clockMutex;
                 ClockTick _baseTime = 0;
                 ClockTick _baseSourceTime = 0;
 
@@ -154,6 +156,7 @@ namespace ESPressio {
 
                 ClockTime GetTime() const override {
                     const ClockTick sourceTime = GetSourceTime();
+                    std::lock_guard<std::mutex> lock(_clockMutex);
                     const ClockTick elapsed = sourceTime >= _baseSourceTime
                         ? sourceTime - _baseSourceTime
                         : 0;
@@ -169,7 +172,9 @@ namespace ESPressio {
             // Setters
 
                 void SetTime(ClockTime time) override {
-                    _baseSourceTime = GetSourceTime();
+                    const ClockTick sourceTime = GetSourceTime();
+                    std::lock_guard<std::mutex> lock(_clockMutex);
+                    _baseSourceTime = sourceTime;
                     _baseTime = GetNanoseconds(time);
                 }
         };

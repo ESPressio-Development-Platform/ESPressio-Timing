@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>
+#include <mutex>
 #include <utility>
 
 #include "ESPressio_Clock.hpp"
@@ -25,6 +26,7 @@ namespace ESPressio {
 
                 ScheduledCallback
                     _callbacks[ESPRESSIO_TIMING_MAX_CALLBACKS];
+                mutable std::mutex _callbacksMutex;
 
                 explicit SystemClock(
                     ITimeSource* timeSource =
@@ -59,6 +61,8 @@ namespace ESPressio {
                         return false;
                     }
 
+                    std::lock_guard<std::mutex> lock(_callbacksMutex);
+
                     for (
                         std::size_t index = 0;
                         index < ESPRESSIO_TIMING_MAX_CALLBACKS;
@@ -84,24 +88,39 @@ namespace ESPressio {
 
                 void Update() override {
                     const ClockTick currentTime = GetNanoseconds(GetTime());
+                    ClockCallback callbacks[ESPRESSIO_TIMING_MAX_CALLBACKS];
+
+                    {
+                        std::lock_guard<std::mutex> lock(_callbacksMutex);
+
+                        for (
+                            std::size_t index = 0;
+                            index < ESPRESSIO_TIMING_MAX_CALLBACKS;
+                            ++index
+                        ) {
+                            if (_callbacks[index].callback &&
+                                currentTime >= _callbacks[index].time) {
+                                callbacks[index] = std::move(
+                                    _callbacks[index].callback
+                                );
+                                _callbacks[index] = ScheduledCallback();
+                            }
+                        }
+                    }
 
                     for (
                         std::size_t index = 0;
                         index < ESPRESSIO_TIMING_MAX_CALLBACKS;
                         ++index
                     ) {
-                        if (_callbacks[index].callback &&
-                            currentTime >= _callbacks[index].time) {
-                            ClockCallback callback = std::move(
-                                _callbacks[index].callback
-                            );
-                            _callbacks[index] = ScheduledCallback();
-                            callback();
+                        if (callbacks[index]) {
+                            callbacks[index]();
                         }
                     }
                 }
 
                 void ClearCallbacks() override {
+                    std::lock_guard<std::mutex> lock(_callbacksMutex);
                     for (
                         std::size_t index = 0;
                         index < ESPRESSIO_TIMING_MAX_CALLBACKS;

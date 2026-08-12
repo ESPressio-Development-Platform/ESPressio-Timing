@@ -1,5 +1,7 @@
 #pragma once
 
+#include <mutex>
+
 #include "ESPressio_Clock.hpp"
 #include "ESPressio_IRTCClock.hpp"
 
@@ -21,6 +23,18 @@ namespace ESPressio {
                 ClockTick _sourceTime = 0;
                 ClockTick _rtcResolution;
                 bool _isSynchronized = false;
+                mutable std::mutex _stateMutex;
+                mutable std::mutex _rtcIOMutex;
+
+                void _setSynchronizedTime(
+                    ClockTime time,
+                    ClockTick sourceTime
+                ) {
+                    std::lock_guard<std::mutex> lock(_stateMutex);
+                    _sourceTime = sourceTime;
+                    _rtcTime = GetNanoseconds(time);
+                    _isSynchronized = true;
+                }
 
             protected:
                 explicit RTCClockBase(
@@ -34,9 +48,8 @@ namespace ESPressio {
                 virtual bool WriteRTC(ClockTime time) = 0;
 
                 void SetSynchronizedTime(ClockTime time) {
-                    _sourceTime = GetSourceTime();
-                    _rtcTime = GetNanoseconds(time);
-                    _isSynchronized = true;
+                    const ClockTick sourceTime = GetSourceTime();
+                    _setSynchronizedTime(time, sourceTime);
                 }
 
             public:
@@ -45,11 +58,14 @@ namespace ESPressio {
                 bool Synchronize() override {
                     ClockTime time;
 
+                    std::lock_guard<std::mutex> ioLock(_rtcIOMutex);
+
                     if (!ReadRTC(time)) {
                         return false;
                     }
 
-                    SetSynchronizedTime(time);
+                    const ClockTick sourceTime = GetSourceTime();
+                    _setSynchronizedTime(time, sourceTime);
                     return true;
                 }
 
@@ -58,26 +74,32 @@ namespace ESPressio {
                 }
 
                 void OnRTCInterrupt(ClockTime time) override {
-                    SetSynchronizedTime(time);
+                    const ClockTick sourceTime = GetSourceTime();
+                    _setSynchronizedTime(time, sourceTime);
                 }
 
                 bool TrySetTime(ClockTime time) {
+                    std::lock_guard<std::mutex> ioLock(_rtcIOMutex);
+
                     if (!WriteRTC(time)) {
                         return false;
                     }
 
-                    SetSynchronizedTime(time);
+                    const ClockTick sourceTime = GetSourceTime();
+                    _setSynchronizedTime(time, sourceTime);
                     return true;
                 }
 
             // Getters
 
                 ClockTime GetTime() const override {
+                    const ClockTick sourceTime = GetSourceTime();
+                    std::lock_guard<std::mutex> lock(_stateMutex);
+
                     if (!_isSynchronized) {
                         return CreateClockTime(0, _rtcResolution);
                     }
 
-                    const ClockTick sourceTime = GetSourceTime();
                     const ClockTick elapsed = sourceTime >= _sourceTime
                         ? sourceTime - _sourceTime
                         : 0;
@@ -102,6 +124,7 @@ namespace ESPressio {
                 }
 
                 bool GetIsSynchronized() const override {
+                    std::lock_guard<std::mutex> lock(_stateMutex);
                     return _isSynchronized;
                 }
 

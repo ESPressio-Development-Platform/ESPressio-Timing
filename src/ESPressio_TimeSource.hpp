@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <limits>
+#include <mutex>
 
 #include "ESPressio_IClock.hpp"
 #include "ESPressio_ITimeSource.hpp"
@@ -87,6 +88,7 @@ namespace ESPressio {
             private:
                 mutable uint32_t _lastTick = 0;
                 mutable uint64_t _tickEpoch = 0;
+                mutable std::mutex _tickMutex;
             #endif
 
             public:
@@ -103,9 +105,27 @@ namespace ESPressio {
                         return static_cast<uint64_t>(esp_timer_get_time());
                     #elif defined(ARDUINO)
                         const uint32_t currentTick = micros();
+                        std::lock_guard<std::mutex> lock(_tickMutex);
+
+                        static constexpr uint64_t TickRange = 1ULL << 32;
+                        static constexpr uint32_t HalfTickRange =
+                            1UL << 31;
 
                         if (currentTick < _lastTick) {
-                            _tickEpoch += (1ULL << 32);
+                            const uint32_t difference =
+                                _lastTick - currentTick;
+
+                            if (difference > HalfTickRange) {
+                                _tickEpoch += TickRange;
+                                _lastTick = currentTick;
+                            }
+
+                            return _tickEpoch + currentTick;
+                        }
+
+                        if (currentTick - _lastTick > HalfTickRange &&
+                            _tickEpoch >= TickRange) {
+                            return (_tickEpoch - TickRange) + currentTick;
                         }
 
                         _lastTick = currentTick;
