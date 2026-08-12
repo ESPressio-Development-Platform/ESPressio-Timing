@@ -6,6 +6,12 @@ Light-weight and easy-to-use Threading for your Microcontroller development work
 ## Latest Stable Version
 The latest Stable Version is [1.0.0](https://github.com/Flowduino/ESPressio-Timing/releases/tag/1.0.0).
 
+## Compatibility
+
+The interfaces in this repository use platform-neutral C++ and may compile on any target with C++11 support, including ESP32, ESP8266, RP2040, SAMD, STM32, Renesas, Teensy, and AVR toolchains.
+
+However, the current `SystemClock` methods are placeholders and the repository has no Arduino or PlatformIO library manifest. No hardware-backed clock or timer is presently implemented, so the library should not yet be described as functionally compatible with any microcontroller. Device-specific compatibility can be declared once concrete timer implementations and build verification are added.
+
 ## ESPressio Development Platform
 The **ESPressio** Development Platform is a collection of discrete (sometimes intra-connected) Component Libraries developed with a particular development ethos in mind.
 
@@ -61,8 +67,7 @@ The specific implementation used will depend quite heavily on your hardware, and
 As an example, most ESP32 Micro Controllers (MCUs) are able to leverage the integrated *General Purpose Timer* (or *GPTimer*) to provide extremely precise, hardware-driven Timing with a resolution as low as 1 microsecond (1us).
 Conversely, with an Arduino or any other MCU not featuring an integrated high-precision Timing unit, you may need to leverage an oscillating crystal (commonly included with Real-Time Clock (RTC) hardware modules). However, while this will provide you with the means to implement a reliable Precision Timer, the resolution of this Timer may be considerably lower than with the integrated *GPTimer* of the ESP32 MCU. Most RTC units, for example, can only provide precise Timing with a resolution of 32 microseconds (32us), thus 32x lower resolution than the ESP32's *GPTimer*.
 
-The ESPressio Timing library includes implementations for both the *GPTimer* on the ESP32, as well as a Generic Interrupt-Driven Timer with a definable precision.
-This will service the majority of hardware platforms, while still empowering you to implement and leverage your own Timing solution should your hardware provide an alternative means for precise Timing.
+The intended ESPressio Timing design includes implementations for both the *GPTimer* on the ESP32 and a generic interrupt-driven timer with configurable precision. Those hardware-backed implementations are not present in the current repository; at present it provides interfaces and placeholder clock types from which concrete platform integrations can be developed.
 
 ## Why is Timing important?
 Precision Timing is an extremely common requirement for a broad range of hardware devices (and their corresponding software).
