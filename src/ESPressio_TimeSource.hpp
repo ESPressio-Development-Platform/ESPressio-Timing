@@ -5,6 +5,11 @@
 
 #include "ESPressio_IClock.hpp"
 #include "ESPressio_ITimeSource.hpp"
+#include "ESPressio_GPTimerTimeSource.hpp"
+
+#ifndef ESPRESSIO_TIMING_USE_GPTIMER_BY_DEFAULT
+    #define ESPRESSIO_TIMING_USE_GPTIMER_BY_DEFAULT 1
+#endif
 
 #if defined(ESP32)
     #include <esp_timer.h>
@@ -72,6 +77,12 @@ namespace ESPressio {
         }
 
         class HighResolutionTimeSource : public ITimeSource {
+            #if ESPRESSIO_TIMING_HAS_GPTIMER && \
+                ESPRESSIO_TIMING_USE_GPTIMER_BY_DEFAULT
+            private:
+                GPTimerTimeSource _gptimerTimeSource;
+            #endif
+
             #if defined(ARDUINO) && !defined(ESP32)
             private:
                 mutable uint32_t _lastTick = 0;
@@ -83,6 +94,12 @@ namespace ESPressio {
 
                 uint64_t GetTicks() const override {
                     #if defined(ESP32)
+                        #if ESPRESSIO_TIMING_HAS_GPTIMER && \
+                            ESPRESSIO_TIMING_USE_GPTIMER_BY_DEFAULT
+                            if (_gptimerTimeSource.GetIsAvailable()) {
+                                return _gptimerTimeSource.GetTicks();
+                            }
+                        #endif
                         return static_cast<uint64_t>(esp_timer_get_time());
                     #elif defined(ARDUINO)
                         const uint32_t currentTick = micros();
@@ -102,7 +119,15 @@ namespace ESPressio {
                 }
 
                 uint64_t GetTicksPerSecond() const override {
-                    #if defined(ESP32) || defined(ARDUINO)
+                    #if defined(ESP32)
+                        #if ESPRESSIO_TIMING_HAS_GPTIMER && \
+                            ESPRESSIO_TIMING_USE_GPTIMER_BY_DEFAULT
+                            if (_gptimerTimeSource.GetIsAvailable()) {
+                                return _gptimerTimeSource.GetTicksPerSecond();
+                            }
+                        #endif
+                        return 1000000ULL;
+                    #elif defined(ARDUINO)
                         return 1000000ULL;
                     #else
                         typedef std::chrono::steady_clock SourceClock;
@@ -112,9 +137,18 @@ namespace ESPressio {
                     #endif
                 }
 
+                bool GetIsUsingGPTimer() const {
+                    #if ESPRESSIO_TIMING_HAS_GPTIMER && \
+                        ESPRESSIO_TIMING_USE_GPTIMER_BY_DEFAULT
+                        return _gptimerTimeSource.GetIsAvailable();
+                    #else
+                        return false;
+                    #endif
+                }
+
             // Static Methods
 
-                static ITimeSource* GetInstance() {
+                static HighResolutionTimeSource* GetInstance() {
                     static HighResolutionTimeSource instance;
                     return &instance;
                 }
