@@ -1,19 +1,20 @@
 #pragma once
 
-#include <mutex>
-
 #include "ESPressio_Clock.hpp"
 #include "ESPressio_IStopwatchClock.hpp"
+#include "ESPressio_LockPolicy.hpp"
+#include "ESPressio_ThreadSafeLockPolicy.hpp"
 
 namespace ESPressio {
 
     namespace Timing {
 
-        class StopwatchClock :
+        template <typename TLockPolicy>
+        class BasicStopwatchClock :
             public ClockBase,
             public IStopwatchClock {
             protected:
-                mutable std::mutex _clockMutex;
+                mutable typename TLockPolicy::Mutex _clockMutex;
 
             private:
                 ClockTick _elapsedTime = 0;
@@ -23,10 +24,12 @@ namespace ESPressio {
             public:
             // Constructor
 
-                explicit StopwatchClock(
+                explicit BasicStopwatchClock(
                     bool startImmediately = false,
                     ITimeSource* timeSource =
-                        HighResolutionTimeSource::GetInstance()
+                        BasicHighResolutionTimeSource<
+                            TLockPolicy
+                        >::GetInstance()
                 ) : ClockBase(timeSource) {
                     if (startImmediately) {
                         Start();
@@ -37,7 +40,7 @@ namespace ESPressio {
 
                 void Start() override {
                     const ClockTick sourceTime = GetSourceTime();
-                    std::lock_guard<std::mutex> lock(_clockMutex);
+                    typename TLockPolicy::Guard lock(_clockMutex);
 
                     if (_isRunning) {
                         return;
@@ -49,7 +52,7 @@ namespace ESPressio {
 
                 void Stop() override {
                     const ClockTick sourceTime = GetSourceTime();
-                    std::lock_guard<std::mutex> lock(_clockMutex);
+                    typename TLockPolicy::Guard lock(_clockMutex);
 
                     if (!_isRunning) {
                         return;
@@ -68,14 +71,14 @@ namespace ESPressio {
 
                 void Reset() override {
                     const ClockTick sourceTime = GetSourceTime();
-                    std::lock_guard<std::mutex> lock(_clockMutex);
+                    typename TLockPolicy::Guard lock(_clockMutex);
                     _elapsedTime = 0;
                     _startTime = sourceTime;
                 }
 
                 void Restart() override {
                     const ClockTick sourceTime = GetSourceTime();
-                    std::lock_guard<std::mutex> lock(_clockMutex);
+                    typename TLockPolicy::Guard lock(_clockMutex);
                     _elapsedTime = 0;
                     _startTime = sourceTime;
                     _isRunning = true;
@@ -85,7 +88,7 @@ namespace ESPressio {
 
                 ClockTime GetTime() const override {
                     const ClockTick sourceTime = GetSourceTime();
-                    std::lock_guard<std::mutex> lock(_clockMutex);
+                    typename TLockPolicy::Guard lock(_clockMutex);
 
                     if (!_isRunning) {
                         return CreateClockTime(
@@ -116,7 +119,7 @@ namespace ESPressio {
                 }
 
                 bool GetIsRunning() const override {
-                    std::lock_guard<std::mutex> lock(_clockMutex);
+                    typename TLockPolicy::Guard lock(_clockMutex);
                     return _isRunning;
                 }
 
@@ -124,7 +127,7 @@ namespace ESPressio {
 
                 void SetTime(ClockTime time) override {
                     const ClockTick sourceTime = GetSourceTime();
-                    std::lock_guard<std::mutex> lock(_clockMutex);
+                    typename TLockPolicy::Guard lock(_clockMutex);
                     _elapsedTime = GetNanoseconds(time);
 
                     if (_isRunning) {
@@ -132,6 +135,10 @@ namespace ESPressio {
                     }
                 }
         };
+
+        typedef BasicStopwatchClock<ThreadSafeLockPolicy> StopwatchClock;
+        typedef BasicStopwatchClock<NoLockPolicy>
+            SingleThreadedStopwatchClock;
 
     }
 

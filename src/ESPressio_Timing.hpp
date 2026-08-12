@@ -1,5 +1,7 @@
 #pragma once
 
+#include "ESPressio_LockPolicy.hpp"
+#include "ESPressio_ThreadSafeLockPolicy.hpp"
 #include "ESPressio_IClock.hpp"
 #include "ESPressio_ITimeSource.hpp"
 #include "ESPressio_GPTimerTimeSource.hpp"

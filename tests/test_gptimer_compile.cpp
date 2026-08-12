@@ -13,6 +13,10 @@ static_assert(
     std::is_base_of<IClock, GPTimerClock>::value,
     "GPTimerClock must implement IClock"
 );
+static_assert(
+    std::is_base_of<IClock, SingleThreadedGPTimerClock>::value,
+    "SingleThreadedGPTimerClock must implement IClock"
+);
 
 int main() {
     HighResolutionTimeSource* defaultSource =
@@ -34,5 +38,9 @@ int main() {
     const IClock& clockInterface = clock;
     assert(clockInterface.GetTime().context ==
         ESPressio::Units::UnitContext::Time);
+
+    SingleThreadedGPTimerClock singleThreadedClock(true, 10000000UL);
+    assert(singleThreadedClock.GetIsAvailable());
+    assert(singleThreadedClock.GetResolution().value == 100);
     return 0;
 }

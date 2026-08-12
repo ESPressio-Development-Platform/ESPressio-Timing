@@ -12,15 +12,16 @@ namespace ESPressio {
 
     namespace Timing {
 
-        class GPTimerClock : public IStopwatchClock {
+        template <typename TLockPolicy>
+        class BasicGPTimerClock : public IStopwatchClock {
             private:
                 GPTimerTimeSource _timeSource;
-                StopwatchClock _stopwatch;
+                BasicStopwatchClock<TLockPolicy> _stopwatch;
 
             public:
             // Constructor
 
-                explicit GPTimerClock(
+                explicit BasicGPTimerClock(
                     bool startImmediately = false,
                     uint32_t requestedResolution =
                         ESPRESSIO_TIMING_GPTIMER_DEFAULT_RESOLUTION_HZ
@@ -32,10 +33,12 @@ namespace ESPressio {
 
             // Deleted Copy/Move
 
-                GPTimerClock(const GPTimerClock&) = delete;
-                GPTimerClock& operator=(const GPTimerClock&) = delete;
-                GPTimerClock(GPTimerClock&&) = delete;
-                GPTimerClock& operator=(GPTimerClock&&) = delete;
+                BasicGPTimerClock(const BasicGPTimerClock&) = delete;
+                BasicGPTimerClock& operator=(
+                    const BasicGPTimerClock&
+                ) = delete;
+                BasicGPTimerClock(BasicGPTimerClock&&) = delete;
+                BasicGPTimerClock& operator=(BasicGPTimerClock&&) = delete;
 
             // Methods
 
@@ -96,6 +99,10 @@ namespace ESPressio {
                     _stopwatch.SetTime(time);
                 }
         };
+
+        typedef BasicGPTimerClock<ThreadSafeLockPolicy> GPTimerClock;
+        typedef BasicGPTimerClock<NoLockPolicy>
+            SingleThreadedGPTimerClock;
 
     }
 

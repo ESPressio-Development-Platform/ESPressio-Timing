@@ -2,11 +2,12 @@
 
 #include <cstdint>
 #include <limits>
-#include <mutex>
 
 #include "ESPressio_IClock.hpp"
 #include "ESPressio_ITimeSource.hpp"
 #include "ESPressio_GPTimerTimeSource.hpp"
+#include "ESPressio_LockPolicy.hpp"
+#include "ESPressio_ThreadSafeLockPolicy.hpp"
 
 #ifndef ESPRESSIO_TIMING_USE_GPTIMER_BY_DEFAULT
     #define ESPRESSIO_TIMING_USE_GPTIMER_BY_DEFAULT 1
@@ -77,7 +78,8 @@ namespace ESPressio {
 
         }
 
-        class HighResolutionTimeSource : public ITimeSource {
+        template <typename TLockPolicy>
+        class BasicHighResolutionTimeSource : public ITimeSource {
             #if ESPRESSIO_TIMING_HAS_GPTIMER && \
                 ESPRESSIO_TIMING_USE_GPTIMER_BY_DEFAULT
             private:
@@ -88,7 +90,7 @@ namespace ESPressio {
             private:
                 mutable uint32_t _lastTick = 0;
                 mutable uint64_t _tickEpoch = 0;
-                mutable std::mutex _tickMutex;
+                mutable typename TLockPolicy::Mutex _tickMutex;
             #endif
 
             public:
@@ -105,7 +107,7 @@ namespace ESPressio {
                         return static_cast<uint64_t>(esp_timer_get_time());
                     #elif defined(ARDUINO)
                         const uint32_t currentTick = micros();
-                        std::lock_guard<std::mutex> lock(_tickMutex);
+                        typename TLockPolicy::Guard lock(_tickMutex);
 
                         static constexpr uint64_t TickRange = 1ULL << 32;
                         static constexpr uint32_t HalfTickRange =
@@ -168,11 +170,16 @@ namespace ESPressio {
 
             // Static Methods
 
-                static HighResolutionTimeSource* GetInstance() {
-                    static HighResolutionTimeSource instance;
+                static BasicHighResolutionTimeSource* GetInstance() {
+                    static BasicHighResolutionTimeSource instance;
                     return &instance;
                 }
         };
+
+        typedef BasicHighResolutionTimeSource<ThreadSafeLockPolicy>
+            HighResolutionTimeSource;
+        typedef BasicHighResolutionTimeSource<NoLockPolicy>
+            SingleThreadedHighResolutionTimeSource;
 
     }
 

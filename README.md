@@ -65,11 +65,15 @@ The namespace provides the following (*click on any declaration to navigate to m
 - `ESPressio::Timing::ITimeSource`
 - `ESPressio::Timing::HighResolutionTimeSource`
 - `ESPressio::Timing::SystemClock`
+- `ESPressio::Timing::SingleThreadedSystemClock`
 - `ESPressio::Timing::StopwatchClock`
+- `ESPressio::Timing::SingleThreadedStopwatchClock`
 - `ESPressio::Timing::GPTimerTimeSource` (when available)
 - `ESPressio::Timing::GPTimerClock` (when available)
+- `ESPressio::Timing::SingleThreadedGPTimerClock` (when available)
 - `ESPressio::Timing::IRTCClock`
 - `ESPressio::Timing::RTCClockBase`
+- `ESPressio::Timing::SingleThreadedRTCClockBase`
 
 ## Platformio.ini
 You can quickly and easily add this library to your project in PlatformIO by simply including the following in your `platformio.ini` file:
@@ -105,13 +109,35 @@ All clock implementations share the same `IClock` interface. Code accepting an `
 
 ## Thread Safety and Moment-of-Request Semantics
 
-All mutable clock state is synchronized. `SystemClock`, `StopwatchClock`, `RTCClockBase`, `GPTimerClock`, callback registration, RTC device I/O, and the generic Arduino rollover extension may be used concurrently from multiple tasks or standard threads while the referenced objects remain alive.
+The established short names remain thread-safe for backward compatibility. `SystemClock`, `StopwatchClock`, `RTCClockBase`, `GPTimerClock`, callback registration, RTC device I/O, and the default generic Arduino rollover extension may be used concurrently from multiple tasks or standard threads while the referenced objects remain alive.
 
 Every `GetTime()` implementation captures the underlying hardware or framework counter **before** waiting for its clock-state mutex. The returned value therefore represents the instant at which the request sampled the time source, not the later instant at which lock contention ended. Conversion to ESPressio Units and formatting occur after that captured value has been secured.
 
 State-changing operations such as `Start()`, `Stop()`, `Reset()`, `SetTime()`, and RTC synchronization similarly capture one source value and use that same value throughout the atomic transition. Scheduled callbacks are removed from shared state under lock and invoked only after the lock is released, allowing callbacks to register or clear callbacks without deadlocking.
 
 Thread safety does not extend object lifetime: an application must not destroy a clock or injected `ITimeSource` while another task is using it. Clock state methods are task/thread-safe, not generally ISR-safe. Continue to defer `RTCClockBase::OnRTCInterrupt()` to task context as described below. The underlying ESP-IDF `gptimer_get_raw_count()` API is driver-thread-safe and ISR-capable, and `esp_timer_get_time()` is lock-free, but the higher-level clock state deliberately uses task-level mutexes.
+
+### Single-Threaded Variants
+
+Applications which guarantee that a clock is accessed from only one execution context can select the corresponding zero-lock type:
+
+| Thread-safe default | Zero-lock alternative |
+|---|---|
+| `SystemClock` | `SingleThreadedSystemClock` |
+| `StopwatchClock` | `SingleThreadedStopwatchClock` |
+| `RTCClockBase` | `SingleThreadedRTCClockBase` |
+| `GPTimerClock` | `SingleThreadedGPTimerClock` |
+| `HighResolutionTimeSource` | `SingleThreadedHighResolutionTimeSource` |
+
+Both families use the same policy-based implementation and implement the same interfaces. The single-threaded specializations use `NoLockPolicy`; its mutex and guard contain no synchronization operation and are optimized away. They retain the same moment-of-request ordering but provide no protection against concurrent access.
+
+```cpp
+SingleThreadedStopwatchClock stopwatch(true);
+const IClock& clock = stopwatch;
+ClockTime elapsed = clock.GetTime();
+```
+
+The thread-safe and single-threaded default time sources are separate singletons. On a GPTimer-capable ESP32, initializing both may reserve two GPTimer resources. Inject a shared source explicitly if that resource use is undesirable, but only share a source whose own concurrency guarantees match every consumer.
 
 ## System Clock
 

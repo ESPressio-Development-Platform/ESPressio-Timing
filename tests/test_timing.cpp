@@ -26,6 +26,25 @@ static_assert(
     ClockTime::context == ESPressio::Units::UnitContext::Time,
     "ClockTime must carry the ESPressio Units Time context"
 );
+static_assert(
+    std::is_base_of<IClock, SingleThreadedSystemClock>::value,
+    "SingleThreadedSystemClock must implement IClock"
+);
+static_assert(
+    std::is_base_of<IClock, SingleThreadedStopwatchClock>::value,
+    "SingleThreadedStopwatchClock must implement IClock"
+);
+static_assert(
+    std::is_base_of<IClock, SingleThreadedRTCClockBase>::value,
+    "SingleThreadedRTCClockBase must implement IClock"
+);
+static_assert(
+    !std::is_same<
+        StopwatchClock,
+        SingleThreadedStopwatchClock
+    >::value,
+    "Thread-safe and single-threaded clocks must be distinct types"
+);
 
 class ManualTimeSource : public ITimeSource {
     public:
@@ -78,6 +97,11 @@ static ManualTimeSource& GetSystemTimeSource() {
     return source;
 }
 
+static ManualTimeSource& GetSingleThreadedSystemTimeSource() {
+    static ManualTimeSource source;
+    return source;
+}
+
 class TestRTCClock : public RTCClockBase {
     public:
         ClockTime hardwareTime;
@@ -105,6 +129,28 @@ class TestRTCClock : public RTCClockBase {
                 return false;
             }
 
+            hardwareTime = time;
+            return true;
+        }
+};
+
+class SingleThreadedTestRTCClock : public SingleThreadedRTCClockBase {
+    public:
+        ClockTime hardwareTime;
+
+        explicit SingleThreadedTestRTCClock(ITimeSource* timeSource)
+            : SingleThreadedRTCClockBase(
+                ClockTime(1, Units::Milli),
+                timeSource
+            ) { }
+
+    protected:
+        bool ReadRTC(ClockTime& time) override {
+            time = hardwareTime;
+            return true;
+        }
+
+        bool WriteRTC(ClockTime time) override {
             hardwareTime = time;
             return true;
         }
@@ -275,6 +321,39 @@ static void TestConcurrentStopwatchAccess() {
     assert(stopwatch.GetTime().orderOfMagnitude == Units::Micro);
 }
 
+static void TestSingleThreadedVariants() {
+    assert(
+        sizeof(SingleThreadedStopwatchClock) <
+            sizeof(StopwatchClock)
+    );
+
+    ManualTimeSource source;
+    SingleThreadedStopwatchClock stopwatch(true, &source);
+    SingleThreadedTestRTCClock rtcClock(&source);
+
+    source.ticks = 25;
+    assert(stopwatch.GetTime().value == 25);
+    assert(stopwatch.GetTime().orderOfMagnitude == Units::Micro);
+
+    rtcClock.OnRTCInterrupt(ClockTime(2, Units::Milli));
+    source.ticks = 1025;
+    assert(rtcClock.GetTime().value == 3);
+    assert(rtcClock.GetTime().orderOfMagnitude == Units::Milli);
+
+    const IClock& stopwatchInterface = stopwatch;
+    const IClock& rtcInterface = rtcClock;
+    assert(stopwatchInterface.GetTime().context == Units::UnitContext::Time);
+    assert(rtcInterface.GetTime().context == Units::UnitContext::Time);
+
+    ManualTimeSource& systemSource =
+        GetSingleThreadedSystemTimeSource();
+    SingleThreadedSystemClock* systemClock =
+        SingleThreadedSystemClock::GetInstance(&systemSource);
+    systemClock->SetTime(ClockTime(10, Units::Micro));
+    systemSource.ticks = 5;
+    assert(systemClock->GetTime().value == 15);
+}
+
 int main() {
     TestTickConversion();
     TestStopwatch();
@@ -283,5 +362,6 @@ int main() {
     TestCommonClockInterface();
     TestMomentOfRequestUnderContention();
     TestConcurrentStopwatchAccess();
+    TestSingleThreadedVariants();
     return 0;
 }

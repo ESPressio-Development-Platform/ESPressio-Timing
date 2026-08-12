@@ -1,11 +1,12 @@
 #pragma once
 
 #include <cstddef>
-#include <mutex>
 #include <utility>
 
 #include "ESPressio_Clock.hpp"
 #include "ESPressio_ISystemClock.hpp"
+#include "ESPressio_LockPolicy.hpp"
+#include "ESPressio_ThreadSafeLockPolicy.hpp"
 
 #ifndef ESPRESSIO_TIMING_MAX_CALLBACKS
     #define ESPRESSIO_TIMING_MAX_CALLBACKS 8
@@ -15,8 +16,9 @@ namespace ESPressio {
 
     namespace Timing {
 
-        class SystemClock :
-            public ClockSettableBase,
+        template <typename TLockPolicy>
+        class BasicSystemClock :
+            public BasicClockSettableBase<TLockPolicy>,
             public ISystemClock {
             private:
                 struct ScheduledCallback {
@@ -26,28 +28,32 @@ namespace ESPressio {
 
                 ScheduledCallback
                     _callbacks[ESPRESSIO_TIMING_MAX_CALLBACKS];
-                mutable std::mutex _callbacksMutex;
+                mutable typename TLockPolicy::Mutex _callbacksMutex;
 
-                explicit SystemClock(
+                explicit BasicSystemClock(
                     ITimeSource* timeSource =
-                        HighResolutionTimeSource::GetInstance()
-                ) : ClockSettableBase(timeSource) { }
+                        BasicHighResolutionTimeSource<
+                            TLockPolicy
+                        >::GetInstance()
+                ) : BasicClockSettableBase<TLockPolicy>(timeSource) { }
 
             public:
             // Deleted Copy/Move
 
-                SystemClock(const SystemClock&) = delete;
-                SystemClock& operator=(const SystemClock&) = delete;
-                SystemClock(SystemClock&&) = delete;
-                SystemClock& operator=(SystemClock&&) = delete;
+                BasicSystemClock(const BasicSystemClock&) = delete;
+                BasicSystemClock& operator=(const BasicSystemClock&) = delete;
+                BasicSystemClock(BasicSystemClock&&) = delete;
+                BasicSystemClock& operator=(BasicSystemClock&&) = delete;
 
             // Static Methods
 
-                static SystemClock* GetInstance(
+                static BasicSystemClock* GetInstance(
                     ITimeSource* timeSource =
-                        HighResolutionTimeSource::GetInstance()
+                        BasicHighResolutionTimeSource<
+                            TLockPolicy
+                        >::GetInstance()
                 ) {
-                    static SystemClock instance(timeSource);
+                    static BasicSystemClock instance(timeSource);
                     return &instance;
                 }
 
@@ -61,7 +67,7 @@ namespace ESPressio {
                         return false;
                     }
 
-                    std::lock_guard<std::mutex> lock(_callbacksMutex);
+                    typename TLockPolicy::Guard lock(_callbacksMutex);
 
                     for (
                         std::size_t index = 0;
@@ -69,7 +75,8 @@ namespace ESPressio {
                         ++index
                     ) {
                         if (!_callbacks[index].callback) {
-                            _callbacks[index].time = GetNanoseconds(time);
+                            _callbacks[index].time =
+                                ClockBase::GetNanoseconds(time);
                             _callbacks[index].callback =
                                 std::move(callback);
                             return true;
@@ -87,11 +94,12 @@ namespace ESPressio {
                 }
 
                 void Update() override {
-                    const ClockTick currentTime = GetNanoseconds(GetTime());
+                    const ClockTick currentTime =
+                        ClockBase::GetNanoseconds(this->GetTime());
                     ClockCallback callbacks[ESPRESSIO_TIMING_MAX_CALLBACKS];
 
                     {
-                        std::lock_guard<std::mutex> lock(_callbacksMutex);
+                        typename TLockPolicy::Guard lock(_callbacksMutex);
 
                         for (
                             std::size_t index = 0;
@@ -120,7 +128,7 @@ namespace ESPressio {
                 }
 
                 void ClearCallbacks() override {
-                    std::lock_guard<std::mutex> lock(_callbacksMutex);
+                    typename TLockPolicy::Guard lock(_callbacksMutex);
                     for (
                         std::size_t index = 0;
                         index < ESPRESSIO_TIMING_MAX_CALLBACKS;
@@ -130,6 +138,9 @@ namespace ESPressio {
                     }
                 }
         };
+
+        typedef BasicSystemClock<ThreadSafeLockPolicy> SystemClock;
+        typedef BasicSystemClock<NoLockPolicy> SingleThreadedSystemClock;
 
     }
 

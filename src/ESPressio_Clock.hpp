@@ -1,11 +1,12 @@
 #pragma once
 
 #include <limits>
-#include <mutex>
 
 #include "ESPressio_IClock.hpp"
 #include "ESPressio_ITimeSource.hpp"
 #include "ESPressio_TimeSource.hpp"
+#include "ESPressio_LockPolicy.hpp"
+#include "ESPressio_ThreadSafeLockPolicy.hpp"
 
 namespace ESPressio {
 
@@ -137,17 +138,20 @@ namespace ESPressio {
                 }
         };
 
-        class ClockSettableBase :
+        template <typename TLockPolicy>
+        class BasicClockSettableBase :
             public ClockBase,
             public virtual IClockSettable {
             protected:
-                mutable std::mutex _clockMutex;
+                mutable typename TLockPolicy::Mutex _clockMutex;
                 ClockTick _baseTime = 0;
                 ClockTick _baseSourceTime = 0;
 
-                explicit ClockSettableBase(
+                explicit BasicClockSettableBase(
                     ITimeSource* timeSource =
-                        HighResolutionTimeSource::GetInstance()
+                        BasicHighResolutionTimeSource<
+                            TLockPolicy
+                        >::GetInstance()
                 ) : ClockBase(timeSource),
                     _baseSourceTime(GetSourceTime()) { }
 
@@ -156,7 +160,7 @@ namespace ESPressio {
 
                 ClockTime GetTime() const override {
                     const ClockTick sourceTime = GetSourceTime();
-                    std::lock_guard<std::mutex> lock(_clockMutex);
+                    typename TLockPolicy::Guard lock(_clockMutex);
                     const ClockTick elapsed = sourceTime >= _baseSourceTime
                         ? sourceTime - _baseSourceTime
                         : 0;
@@ -173,11 +177,16 @@ namespace ESPressio {
 
                 void SetTime(ClockTime time) override {
                     const ClockTick sourceTime = GetSourceTime();
-                    std::lock_guard<std::mutex> lock(_clockMutex);
+                    typename TLockPolicy::Guard lock(_clockMutex);
                     _baseSourceTime = sourceTime;
                     _baseTime = GetNanoseconds(time);
                 }
         };
+
+        typedef BasicClockSettableBase<ThreadSafeLockPolicy>
+            ClockSettableBase;
+        typedef BasicClockSettableBase<NoLockPolicy>
+            SingleThreadedClockSettableBase;
 
     }
 
