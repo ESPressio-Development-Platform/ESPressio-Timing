@@ -8,16 +8,17 @@ namespace ESPressio {
 
     namespace Timing {
 
-        class ISystemClock : public virtual IClockSettable {
+        template<typename TTime = DefaultClockTime>
+        class ISystemClock :
+            public virtual IClockSettable<TTime> {
+
             public:
-            // Type Defs
-
-                typedef std::function<void()> ClockCallback;
-
-            // Methods
+                using TimeType = TTime;
+                using ClockCallback =
+                    std::function<void()>;
 
                 virtual void SetCallback(
-                    ClockTime time,
+                    const TTime& time,
                     ClockCallback callback
                 ) = 0;
 

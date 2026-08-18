@@ -7,8 +7,9 @@ namespace ESPressio {
     namespace Timing {
 
         struct ThreadSafeLockPolicy {
-            typedef std::mutex Mutex;
-            typedef std::lock_guard<std::mutex> Guard;
+            using Mutex = std::mutex;
+            using Guard =
+                std::lock_guard<std::mutex>;
         };
 
     }

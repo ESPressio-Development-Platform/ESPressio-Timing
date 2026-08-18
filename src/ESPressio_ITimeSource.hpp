@@ -7,16 +7,14 @@ namespace ESPressio {
     namespace Timing {
 
         /*
-            A raw monotonic hardware or framework time source. Keeping ticks
-            and frequency separate preserves the source's native precision.
-        */
+         * Raw monotonic hardware/framework source.
+         *
+         * This remains completely independent of the public TTime
+         * representation.
+         */
         class ITimeSource {
             public:
-            // Destructor
-
-                virtual ~ITimeSource() { }
-
-            // Getters
+                virtual ~ITimeSource() = default;
 
                 virtual uint64_t GetTicks() const = 0;
                 virtual uint64_t GetTicksPerSecond() const = 0;

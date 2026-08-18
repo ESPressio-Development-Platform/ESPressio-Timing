@@ -9,38 +9,64 @@ namespace ESPressio {
 
     namespace Timing {
 
-        template <typename TLockPolicy>
-        class BasicStopwatchClock :
-            public ClockBase,
-            public IStopwatchClock {
+        template<
+            typename TTime = DefaultClockTime,
+            typename TLockPolicy =
+                ThreadSafeLockPolicy,
+            typename TTick = ClockTick
+        >
+        class StopwatchClock :
+            public ClockBase<
+                TTime,
+                TTick
+            >,
+            public IStopwatchClock<
+                TTime
+            > {
+
             protected:
-                mutable typename TLockPolicy::Mutex _clockMutex;
+                using Base =
+                    ClockBase<
+                        TTime,
+                        TTick
+                    >;
+
+                mutable
+                    typename TLockPolicy::Mutex
+                        _clockMutex;
 
             private:
-                ClockTick _elapsedTime = 0;
-                ClockTick _startTime = 0;
+                TTick _elapsedTime = 0;
+                TTick _startTime = 0;
                 bool _isRunning = false;
 
-            public:
-            // Constructor
 
-                explicit BasicStopwatchClock(
+            public:
+                using TimeType = TTime;
+                using TickType = TTick;
+
+
+                explicit StopwatchClock(
                     bool startImmediately = false,
                     ITimeSource* timeSource =
-                        BasicHighResolutionTimeSource<
+                        HighResolutionTimeSourceT<
                             TLockPolicy
                         >::GetInstance()
-                ) : ClockBase(timeSource) {
+                )
+                    : Base(timeSource) {
+
                     if (startImmediately) {
                         Start();
                     }
                 }
 
-            // Methods
 
                 void Start() override {
-                    const ClockTick sourceTime = GetSourceTime();
-                    typename TLockPolicy::Guard lock(_clockMutex);
+                    const TTick sourceTime =
+                        this->GetSourceTime();
+
+                    typename TLockPolicy::Guard
+                        lock(_clockMutex);
 
                     if (_isRunning) {
                         return;
@@ -50,95 +76,145 @@ namespace ESPressio {
                     _isRunning = true;
                 }
 
+
                 void Stop() override {
-                    const ClockTick sourceTime = GetSourceTime();
-                    typename TLockPolicy::Guard lock(_clockMutex);
+                    const TTick sourceTime =
+                        this->GetSourceTime();
+
+                    typename TLockPolicy::Guard
+                        lock(_clockMutex);
 
                     if (!_isRunning) {
                         return;
                     }
 
-                    const ClockTick currentInterval =
+                    const TTick currentInterval =
                         sourceTime >= _startTime
-                            ? sourceTime - _startTime
+                            ? sourceTime -
+                                _startTime
                             : 0;
-                    _elapsedTime = AddSaturated(
-                        _elapsedTime,
-                        currentInterval
-                    );
+
+                    _elapsedTime =
+                        this->AddSaturated(
+                            _elapsedTime,
+                            currentInterval
+                        );
+
                     _isRunning = false;
                 }
 
+
                 void Reset() override {
-                    const ClockTick sourceTime = GetSourceTime();
-                    typename TLockPolicy::Guard lock(_clockMutex);
+                    const TTick sourceTime =
+                        this->GetSourceTime();
+
+                    typename TLockPolicy::Guard
+                        lock(_clockMutex);
+
                     _elapsedTime = 0;
                     _startTime = sourceTime;
                 }
 
+
                 void Restart() override {
-                    const ClockTick sourceTime = GetSourceTime();
-                    typename TLockPolicy::Guard lock(_clockMutex);
+                    const TTick sourceTime =
+                        this->GetSourceTime();
+
+                    typename TLockPolicy::Guard
+                        lock(_clockMutex);
+
                     _elapsedTime = 0;
                     _startTime = sourceTime;
                     _isRunning = true;
                 }
 
-            // Getters
 
-                ClockTime GetTime() const override {
-                    const ClockTick sourceTime = GetSourceTime();
-                    typename TLockPolicy::Guard lock(_clockMutex);
+                TTime GetTime() const override {
+                    const TTick sourceTime =
+                        this->GetSourceTime();
+
+                    typename TLockPolicy::Guard
+                        lock(_clockMutex);
+
+                    const TTick resolution =
+                        static_cast<TTick>(
+                            Internal::
+                                GetSourceResolution(
+                                    this->_timeSource->
+                                        GetTicksPerSecond()
+                                )
+                        );
 
                     if (!_isRunning) {
-                        return CreateClockTime(
-                            _elapsedTime,
-                            Internal::GetSourceResolution(
-                                _timeSource->GetTicksPerSecond()
-                            )
-                        );
+                        return
+                            this->CreateTime(
+                                _elapsedTime,
+                                resolution
+                            );
                     }
 
-                    const ClockTick currentInterval =
+                    const TTick currentInterval =
                         sourceTime >= _startTime
-                            ? sourceTime - _startTime
+                            ? sourceTime -
+                                _startTime
                             : 0;
 
-                    const ClockTick resolution =
-                        Internal::GetSourceResolution(
-                            _timeSource->GetTicksPerSecond()
+                    return
+                        this->CreateTime(
+                            this->AddSaturated(
+                                _elapsedTime,
+                                currentInterval
+                            ),
+                            resolution
                         );
-                    return CreateClockTime(
-                        AddSaturated(_elapsedTime, currentInterval),
-                        resolution
-                    );
                 }
 
-                ClockTime GetLapTime() const override {
+
+                TTime GetLapTime() const override {
                     return GetTime();
                 }
 
+
                 bool GetIsRunning() const override {
-                    typename TLockPolicy::Guard lock(_clockMutex);
+                    typename TLockPolicy::Guard
+                        lock(_clockMutex);
+
                     return _isRunning;
                 }
 
-            // Setters
 
-                void SetTime(ClockTime time) override {
-                    const ClockTick sourceTime = GetSourceTime();
-                    typename TLockPolicy::Guard lock(_clockMutex);
-                    _elapsedTime = GetNanoseconds(time);
+                void SetTime(
+                    const TTime& time
+                ) override {
+                    const TTick sourceTime =
+                        this->GetSourceTime();
+
+                    typename TLockPolicy::Guard
+                        lock(_clockMutex);
+
+                    _elapsedTime =
+                        this->GetNanoseconds(
+                            time
+                        );
 
                     if (_isRunning) {
-                        _startTime = sourceTime;
+                        _startTime =
+                            sourceTime;
                     }
                 }
         };
 
-        typedef BasicStopwatchClock<ThreadSafeLockPolicy> StopwatchClock;
-        typedef BasicStopwatchClock<NoLockPolicy>
-            SingleThreadedStopwatchClock;
+
+        template<
+            typename TTime = DefaultClockTime,
+            typename TTick = ClockTick
+        >
+        using SingleThreadedStopwatchClock =
+            StopwatchClock<
+                TTime,
+                NoLockPolicy,
+                TTick
+            >;
 
     }
 

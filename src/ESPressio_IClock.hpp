@@ -1,44 +1,40 @@
 #pragma once
 
-#include <cstdint>
-
-#include <ESPressio_Time.hpp>
+#include "ESPressio_ClockTypes.hpp"
 
 namespace ESPressio {
 
     namespace Timing {
 
-        typedef uint64_t ClockTick;
-        typedef Units::Time<uint64_t, Units::Nano> ClockTime;
-
-        static constexpr ClockTick NanosecondsPerMicrosecond = 1000ULL;
-        static constexpr ClockTick NanosecondsPerMillisecond = 1000000ULL;
-        static constexpr ClockTick NanosecondsPerSecond = 1000000000ULL;
-
         /*
-            `IClock` is the common interface for every clock in this library.
-            Values use the ESPressio Units `Time` context. Their runtime order
-            of magnitude represents the clock's actual precision. GetTime()
-            implementations capture their time source before waiting for any
-            clock-state lock, preserving moment-of-request semantics.
-        */
+         * Common clock contract parameterized by the public time
+         * representation.
+         *
+         * A clock's TimeType is part of its interface rather than a global
+         * library-wide typedef.
+         */
+        template<typename TTime = DefaultClockTime>
         class IClock {
             public:
-            // Destructor
+                using TimeType = TTime;
 
-                virtual ~IClock() { }
+                virtual ~IClock() = default;
 
-            // Getters
-
-                virtual ClockTime GetTime() const = 0;
-                virtual ClockTime GetResolution() const = 0;
+                virtual TTime GetTime() const = 0;
+                virtual TTime GetResolution() const = 0;
         };
 
-        class IClockSettable : public virtual IClock {
-            public:
-            // Setters
 
-                virtual void SetTime(ClockTime time) = 0;
+        template<typename TTime = DefaultClockTime>
+        class IClockSettable :
+            public virtual IClock<TTime> {
+
+            public:
+                using TimeType = TTime;
+
+                virtual void SetTime(
+                    const TTime& time
+                ) = 0;
         };
 
     }

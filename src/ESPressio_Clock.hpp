@@ -5,6 +5,7 @@
 #include "ESPressio_IClock.hpp"
 #include "ESPressio_ITimeSource.hpp"
 #include "ESPressio_TimeSource.hpp"
+#include "ESPressio_TimeTraits.hpp"
 #include "ESPressio_LockPolicy.hpp"
 #include "ESPressio_ThreadSafeLockPolicy.hpp"
 
@@ -12,181 +13,211 @@ namespace ESPressio {
 
     namespace Timing {
 
-        class ClockBase : public virtual IClock {
+        template<
+            typename TTime = DefaultClockTime,
+            typename TTick = ClockTick
+        >
+        class ClockBase :
+            public virtual IClock<TTime> {
+
             protected:
                 ITimeSource* _timeSource;
 
                 explicit ClockBase(
                     ITimeSource* timeSource =
-                        HighResolutionTimeSource::GetInstance()
-                ) : _timeSource(
+                        HighResolutionTimeSource::
+                            GetInstance()
+                )
+                    : _timeSource(
                         timeSource == nullptr
-                            ? HighResolutionTimeSource::GetInstance()
+                            ? HighResolutionTimeSource::
+                                GetInstance()
                             : timeSource
-                    ) { }
-
-                ClockTick GetSourceTime() const {
-                    return Internal::TicksToNanoseconds(
-                        _timeSource->GetTicks(),
-                        _timeSource->GetTicksPerSecond()
-                    );
-                }
-
-                static ClockTick AddSaturated(
-                    ClockTick left,
-                    ClockTick right
-                ) {
-                    const ClockTick maximum =
-                        std::numeric_limits<ClockTick>::max();
-
-                    return right > maximum - left
-                        ? maximum
-                        : left + right;
-                }
-
-            public:
-            // Getters
-
-                static Units::UnitOrderOfMagnitude GetMagnitudeForResolution(
-                    ClockTick resolution
-                ) {
-                    if (resolution >= NanosecondsPerSecond &&
-                        resolution % NanosecondsPerSecond == 0) {
-                        return Units::Base;
-                    }
-
-                    if (resolution >= NanosecondsPerMillisecond &&
-                        resolution % NanosecondsPerMillisecond == 0) {
-                        return Units::Milli;
-                    }
-
-                    if (resolution >= NanosecondsPerMicrosecond &&
-                        resolution % NanosecondsPerMicrosecond == 0) {
-                        return Units::Micro;
-                    }
-
-                    return Units::Nano;
-                }
-
-                static ClockTick GetMagnitudeScale(
-                    Units::UnitOrderOfMagnitude magnitude
-                ) {
-                    switch (magnitude) {
-                        case Units::Base: return NanosecondsPerSecond;
-                        case Units::Milli: return NanosecondsPerMillisecond;
-                        case Units::Micro: return NanosecondsPerMicrosecond;
-                        default: return 1;
-                    }
-                }
-
-                static ClockTime CreateClockTime(
-                    ClockTick nanoseconds,
-                    ClockTick resolution
-                ) {
-                    const Units::UnitOrderOfMagnitude magnitude =
-                        GetMagnitudeForResolution(resolution);
-                    return ClockTime(
-                        nanoseconds / GetMagnitudeScale(magnitude),
-                        magnitude
-                    );
-                }
-
-                static ClockTick GetNanoseconds(const ClockTime& time) {
-                    const int exponentDifference =
-                        static_cast<int>(time.orderOfMagnitude) -
-                        static_cast<int>(Units::Nano);
-                    ClockTick value = time.value;
-
-                    if (exponentDifference < 0) {
-                        for (
-                            int exponent = exponentDifference;
-                            exponent < 0;
-                            ++exponent
-                        ) {
-                            value /= 10;
-                        }
-                        return value;
-                    }
-
-                    const ClockTick maximum =
-                        std::numeric_limits<ClockTick>::max();
-
-                    for (
-                        int exponent = 0;
-                        exponent < exponentDifference;
-                        ++exponent
                     ) {
-                        if (value > maximum / 10) {
-                            return maximum;
-                        }
-                        value *= 10;
-                    }
-
-                    return value;
                 }
 
-                ClockTime GetResolution() const override {
-                    const ClockTick resolution =
-                        Internal::GetSourceResolution(
-                        _timeSource->GetTicksPerSecond()
-                    );
-                    return CreateClockTime(resolution, resolution);
-                }
 
-                ITimeSource* GetTimeSource() const {
-                    return _timeSource;
-                }
-        };
-
-        template <typename TLockPolicy>
-        class BasicClockSettableBase :
-            public ClockBase,
-            public virtual IClockSettable {
-            protected:
-                mutable typename TLockPolicy::Mutex _clockMutex;
-                ClockTick _baseTime = 0;
-                ClockTick _baseSourceTime = 0;
-
-                explicit BasicClockSettableBase(
-                    ITimeSource* timeSource =
-                        BasicHighResolutionTimeSource<
-                            TLockPolicy
-                        >::GetInstance()
-                ) : ClockBase(timeSource),
-                    _baseSourceTime(GetSourceTime()) { }
-
-            public:
-            // Getters
-
-                ClockTime GetTime() const override {
-                    const ClockTick sourceTime = GetSourceTime();
-                    typename TLockPolicy::Guard lock(_clockMutex);
-                    const ClockTick elapsed = sourceTime >= _baseSourceTime
-                        ? sourceTime - _baseSourceTime
-                        : 0;
-
-                    return CreateClockTime(
-                        AddSaturated(_baseTime, elapsed),
-                        Internal::GetSourceResolution(
-                            _timeSource->GetTicksPerSecond()
+                TTick GetSourceTime() const {
+                    return static_cast<TTick>(
+                        Internal::TicksToNanoseconds(
+                            _timeSource->GetTicks(),
+                            _timeSource->
+                                GetTicksPerSecond()
                         )
                     );
                 }
 
-            // Setters
 
-                void SetTime(ClockTime time) override {
-                    const ClockTick sourceTime = GetSourceTime();
-                    typename TLockPolicy::Guard lock(_clockMutex);
-                    _baseSourceTime = sourceTime;
-                    _baseTime = GetNanoseconds(time);
+                static TTick AddSaturated(
+                    TTick left,
+                    TTick right
+                ) {
+                    const TTick maximum =
+                        std::numeric_limits<
+                            TTick
+                        >::max();
+
+                    return
+                        right >
+                            maximum -
+                            left
+                            ? maximum
+                            : left +
+                                right;
+                }
+
+
+                static TTime CreateTime(
+                    TTick nanoseconds,
+                    TTick resolution
+                ) {
+                    return
+                        TimeTraits<TTime>::
+                            template
+                            FromNanoseconds<TTick>(
+                                nanoseconds,
+                                resolution
+                            );
+                }
+
+
+                static TTick GetNanoseconds(
+                    const TTime& time
+                ) {
+                    return
+                        TimeTraits<TTime>::
+                            template
+                            ToNanoseconds<TTick>(
+                                time
+                            );
+                }
+
+
+            public:
+                using TimeType = TTime;
+                using TickType = TTick;
+
+
+                TTime GetResolution() const override {
+                    const TTick resolution =
+                        static_cast<TTick>(
+                            Internal::
+                                GetSourceResolution(
+                                    _timeSource->
+                                        GetTicksPerSecond()
+                                )
+                        );
+
+                    return CreateTime(
+                        resolution,
+                        resolution
+                    );
+                }
+
+
+                ITimeSource*
+                GetTimeSource() const {
+                    return _timeSource;
                 }
         };
 
-        typedef BasicClockSettableBase<ThreadSafeLockPolicy>
-            ClockSettableBase;
-        typedef BasicClockSettableBase<NoLockPolicy>
-            SingleThreadedClockSettableBase;
+
+        template<
+            typename TTime = DefaultClockTime,
+            typename TLockPolicy =
+                ThreadSafeLockPolicy,
+            typename TTick = ClockTick
+        >
+        class ClockSettableBase :
+            public ClockBase<
+                TTime,
+                TTick
+            >,
+            public virtual IClockSettable<
+                TTime
+            > {
+
+            protected:
+                using Base =
+                    ClockBase<
+                        TTime,
+                        TTick
+                    >;
+
+                mutable
+                    typename TLockPolicy::Mutex
+                        _clockMutex;
+
+                TTick _baseTime = 0;
+                TTick _baseSourceTime = 0;
+
+
+                explicit ClockSettableBase(
+                    ITimeSource* timeSource =
+                        HighResolutionTimeSourceT<
+                            TLockPolicy
+                        >::GetInstance()
+                )
+                    : Base(timeSource),
+                      _baseSourceTime(
+                          this->GetSourceTime()
+                      ) {
+                }
+
+
+            public:
+                using TimeType = TTime;
+                using TickType = TTick;
+
+
+                TTime GetTime() const override {
+                    const TTick sourceTime =
+                        this->GetSourceTime();
+
+                    typename TLockPolicy::Guard
+                        lock(_clockMutex);
+
+                    const TTick elapsed =
+                        sourceTime >=
+                            _baseSourceTime
+                            ? sourceTime -
+                                _baseSourceTime
+                            : 0;
+
+                    return this->CreateTime(
+                        this->AddSaturated(
+                            _baseTime,
+                            elapsed
+                        ),
+                        static_cast<TTick>(
+                            Internal::
+                                GetSourceResolution(
+                                    this->_timeSource->
+                                        GetTicksPerSecond()
+                                )
+                        )
+                    );
+                }
+
+
+                void SetTime(
+                    const TTime& time
+                ) override {
+                    const TTick sourceTime =
+                        this->GetSourceTime();
+
+                    typename TLockPolicy::Guard
+                        lock(_clockMutex);
+
+                    _baseSourceTime =
+                        sourceTime;
+
+                    _baseTime =
+                        this->GetNanoseconds(
+                            time
+                        );
+                }
+        };
 
     }
 

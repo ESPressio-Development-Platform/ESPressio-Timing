@@ -9,144 +9,263 @@ namespace ESPressio {
 
     namespace Timing {
 
-        /*
-            Derive from `BasicRTCClockBase` to bind an external or integrated
-            RTC. The derived type performs device I/O in ReadRTC/WriteRTC. An
-            RTC interrupt can capture an exact timestamp and defer a call to
-            OnRTCInterrupt(time), avoiding bus access in interrupt context.
-        */
-        template <typename TLockPolicy>
-        class BasicRTCClockBase :
-            public ClockBase,
-            public IRTCClock {
-            private:
-                ClockTick _rtcTime = 0;
-                ClockTick _sourceTime = 0;
-                ClockTick _rtcResolution;
-                bool _isSynchronized = false;
-                mutable typename TLockPolicy::Mutex _stateMutex;
-                mutable typename TLockPolicy::Mutex _rtcIOMutex;
+        template<
+            typename TTime = DefaultClockTime,
+            typename TLockPolicy =
+                ThreadSafeLockPolicy,
+            typename TTick = ClockTick
+        >
+        class RTCClockBase :
+            public ClockBase<
+                TTime,
+                TTick
+            >,
+            public IRTCClock<
+                TTime
+            > {
 
-                void _setSynchronizedTime(
-                    ClockTime time,
-                    ClockTick sourceTime
+            private:
+                using Base =
+                    ClockBase<
+                        TTime,
+                        TTick
+                    >;
+
+                TTick _rtcTime = 0;
+                TTick _sourceTime = 0;
+                TTick _rtcResolution;
+                bool _isSynchronized = false;
+
+                mutable
+                    typename TLockPolicy::Mutex
+                        _stateMutex;
+
+                mutable
+                    typename TLockPolicy::Mutex
+                        _rtcIOMutex;
+
+
+                void SetSynchronizedTimeInternal(
+                    const TTime& time,
+                    TTick sourceTime
                 ) {
-                    typename TLockPolicy::Guard lock(_stateMutex);
-                    _sourceTime = sourceTime;
-                    _rtcTime = ClockBase::GetNanoseconds(time);
-                    _isSynchronized = true;
+                    typename TLockPolicy::Guard
+                        lock(_stateMutex);
+
+                    _sourceTime =
+                        sourceTime;
+
+                    _rtcTime =
+                        this->GetNanoseconds(
+                            time
+                        );
+
+                    _isSynchronized =
+                        true;
                 }
+
 
             protected:
-                explicit BasicRTCClockBase(
-                    ClockTime rtcResolution,
+                explicit RTCClockBase(
+                    const TTime& rtcResolution,
                     ITimeSource* timeSource =
-                        BasicHighResolutionTimeSource<
+                        HighResolutionTimeSourceT<
                             TLockPolicy
                         >::GetInstance()
-                ) : ClockBase(timeSource),
-                    _rtcResolution(
-                        ClockBase::GetNanoseconds(rtcResolution)
-                    ) { }
-
-                virtual bool ReadRTC(ClockTime& time) = 0;
-                virtual bool WriteRTC(ClockTime time) = 0;
-
-                void SetSynchronizedTime(ClockTime time) {
-                    const ClockTick sourceTime = this->GetSourceTime();
-                    _setSynchronizedTime(time, sourceTime);
+                )
+                    : Base(timeSource),
+                      _rtcResolution(
+                          this->GetNanoseconds(
+                              rtcResolution
+                          )
+                      ) {
                 }
 
+
+                virtual bool ReadRTC(
+                    TTime& time
+                ) = 0;
+
+
+                virtual bool WriteRTC(
+                    const TTime& time
+                ) = 0;
+
+
+                void SetSynchronizedTime(
+                    const TTime& time
+                ) {
+                    const TTick sourceTime =
+                        this->GetSourceTime();
+
+                    SetSynchronizedTimeInternal(
+                        time,
+                        sourceTime
+                    );
+                }
+
+
             public:
-            // Methods
+                using TimeType = TTime;
+                using TickType = TTick;
+
 
                 bool Synchronize() override {
-                    ClockTime time;
-                    typename TLockPolicy::Guard ioLock(_rtcIOMutex);
+                    TTime time;
+
+                    typename TLockPolicy::Guard
+                        ioLock(
+                            _rtcIOMutex
+                        );
 
                     if (!ReadRTC(time)) {
                         return false;
                     }
 
-                    const ClockTick sourceTime = this->GetSourceTime();
-                    _setSynchronizedTime(time, sourceTime);
+                    const TTick sourceTime =
+                        this->GetSourceTime();
+
+                    SetSynchronizedTimeInternal(
+                        time,
+                        sourceTime
+                    );
+
                     return true;
                 }
+
 
                 void OnRTCInterrupt() override {
                     Synchronize();
                 }
 
-                void OnRTCInterrupt(ClockTime time) override {
-                    const ClockTick sourceTime = this->GetSourceTime();
-                    _setSynchronizedTime(time, sourceTime);
+
+                void OnRTCInterrupt(
+                    const TTime& time
+                ) override {
+                    const TTick sourceTime =
+                        this->GetSourceTime();
+
+                    SetSynchronizedTimeInternal(
+                        time,
+                        sourceTime
+                    );
                 }
 
-                bool TrySetTime(ClockTime time) {
-                    typename TLockPolicy::Guard ioLock(_rtcIOMutex);
+
+                bool TrySetTime(
+                    const TTime& time
+                ) {
+                    typename TLockPolicy::Guard
+                        ioLock(
+                            _rtcIOMutex
+                        );
 
                     if (!WriteRTC(time)) {
                         return false;
                     }
 
-                    const ClockTick sourceTime = this->GetSourceTime();
-                    _setSynchronizedTime(time, sourceTime);
+                    const TTick sourceTime =
+                        this->GetSourceTime();
+
+                    SetSynchronizedTimeInternal(
+                        time,
+                        sourceTime
+                    );
+
                     return true;
                 }
 
-            // Getters
 
-                ClockTime GetTime() const override {
-                    const ClockTick sourceTime = this->GetSourceTime();
-                    typename TLockPolicy::Guard lock(_stateMutex);
+                TTime GetTime() const override {
+                    const TTick sourceTime =
+                        this->GetSourceTime();
+
+                    typename TLockPolicy::Guard
+                        lock(
+                            _stateMutex
+                        );
 
                     if (!_isSynchronized) {
-                        return ClockBase::CreateClockTime(
-                            0,
-                            _rtcResolution
-                        );
+                        return
+                            this->CreateTime(
+                                0,
+                                _rtcResolution
+                            );
                     }
 
-                    const ClockTick elapsed = sourceTime >= _sourceTime
-                        ? sourceTime - _sourceTime
-                        : 0;
+                    const TTick elapsed =
+                        sourceTime >=
+                            _sourceTime
+                            ? sourceTime -
+                                _sourceTime
+                            : 0;
 
-                    return ClockBase::CreateClockTime(
-                        ClockBase::AddSaturated(_rtcTime, elapsed),
-                        _rtcResolution
-                    );
-                }
-
-                ClockTime GetResolution() const override {
-                    const ClockTick sourceResolution =
-                        Internal::GetSourceResolution(
-                            this->_timeSource->GetTicksPerSecond()
+                    return
+                        this->CreateTime(
+                            this->AddSaturated(
+                                _rtcTime,
+                                elapsed
+                            ),
+                            _rtcResolution
                         );
-
-                    const ClockTick resolution =
-                        _rtcResolution > sourceResolution
-                        ? _rtcResolution
-                        : sourceResolution;
-                    return ClockBase::CreateClockTime(
-                        resolution,
-                        resolution
-                    );
                 }
+
+
+                TTime GetResolution() const override {
+                    const TTick
+                        sourceResolution =
+                            static_cast<TTick>(
+                                Internal::
+                                    GetSourceResolution(
+                                        this->_timeSource->
+                                            GetTicksPerSecond()
+                                    )
+                            );
+
+                    const TTick resolution =
+                        _rtcResolution >
+                            sourceResolution
+                            ? _rtcResolution
+                            : sourceResolution;
+
+                    return
+                        this->CreateTime(
+                            resolution,
+                            resolution
+                        );
+                }
+
 
                 bool GetIsSynchronized() const override {
-                    typename TLockPolicy::Guard lock(_stateMutex);
+                    typename TLockPolicy::Guard
+                        lock(
+                            _stateMutex
+                        );
+
                     return _isSynchronized;
                 }
 
-            // Setters
 
-                void SetTime(ClockTime time) override {
-                    TrySetTime(time);
+                void SetTime(
+                    const TTime& time
+                ) override {
+                    TrySetTime(
+                        time
+                    );
                 }
         };
 
-        typedef BasicRTCClockBase<ThreadSafeLockPolicy> RTCClockBase;
-        typedef BasicRTCClockBase<NoLockPolicy> SingleThreadedRTCClockBase;
+
+        template<
+            typename TTime = DefaultClockTime,
+            typename TTick = ClockTick
+        >
+        using SingleThreadedRTCClockBase =
+            RTCClockBase<
+                TTime,
+                NoLockPolicy,
+                TTick
+            >;
 
     }
 

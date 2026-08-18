@@ -21,14 +21,17 @@
 #endif
 
 #if ESPRESSIO_TIMING_HAS_GPTIMER
-    #include "driver/gptimer.h"
-    #include "esp_err.h"
+
+#include "driver/gptimer.h"
+#include "esp_err.h"
 
 namespace ESPressio {
 
     namespace Timing {
 
-        class GPTimerTimeSource : public ITimeSource {
+        class GPTimerTimeSource :
+            public ITimeSource {
+
             private:
                 gptimer_handle_t _timer = nullptr;
                 uint32_t _resolution = 0;
@@ -36,31 +39,39 @@ namespace ESPressio {
                 bool _isEnabled = false;
                 bool _isRunning = false;
 
-                void _initialize(uint32_t requestedResolution) {
+                void Initialize(
+                    uint32_t requestedResolution
+                ) {
                     if (requestedResolution == 0) {
-                        _initializationResult = ESP_ERR_INVALID_ARG;
+                        _initializationResult =
+                            ESP_ERR_INVALID_ARG;
                         return;
                     }
 
                     gptimer_config_t configuration = {};
-                    configuration.clk_src = GPTIMER_CLK_SRC_DEFAULT;
-                    configuration.direction = GPTIMER_COUNT_UP;
-                    configuration.resolution_hz = requestedResolution;
+                    configuration.clk_src =
+                        GPTIMER_CLK_SRC_DEFAULT;
+                    configuration.direction =
+                        GPTIMER_COUNT_UP;
+                    configuration.resolution_hz =
+                        requestedResolution;
 
-                    _initializationResult = gptimer_new_timer(
-                        &configuration,
-                        &_timer
-                    );
+                    _initializationResult =
+                        gptimer_new_timer(
+                            &configuration,
+                            &_timer
+                        );
 
                     if (_initializationResult != ESP_OK) {
                         _timer = nullptr;
                         return;
                     }
 
-                    _initializationResult = gptimer_get_resolution(
-                        _timer,
-                        &_resolution
-                    );
+                    _initializationResult =
+                        gptimer_get_resolution(
+                            _timer,
+                            &_resolution
+                        );
 
                     if (_initializationResult != ESP_OK) {
                         gptimer_del_timer(_timer);
@@ -69,7 +80,8 @@ namespace ESPressio {
                         return;
                     }
 
-                    _initializationResult = gptimer_enable(_timer);
+                    _initializationResult =
+                        gptimer_enable(_timer);
 
                     if (_initializationResult != ESP_OK) {
                         gptimer_del_timer(_timer);
@@ -79,7 +91,9 @@ namespace ESPressio {
                     }
 
                     _isEnabled = true;
-                    _initializationResult = gptimer_start(_timer);
+
+                    _initializationResult =
+                        gptimer_start(_timer);
 
                     if (_initializationResult != ESP_OK) {
                         gptimer_disable(_timer);
@@ -94,13 +108,13 @@ namespace ESPressio {
                 }
 
             public:
-            // Constructor/Destructor
-
                 explicit GPTimerTimeSource(
                     uint32_t requestedResolution =
                         ESPRESSIO_TIMING_GPTIMER_DEFAULT_RESOLUTION_HZ
                 ) {
-                    _initialize(requestedResolution);
+                    Initialize(
+                        requestedResolution
+                    );
                 }
 
                 ~GPTimerTimeSource() override {
@@ -119,16 +133,22 @@ namespace ESPressio {
                     gptimer_del_timer(_timer);
                 }
 
-            // Deleted Copy/Move
+                GPTimerTimeSource(
+                    const GPTimerTimeSource&
+                ) = delete;
 
-                GPTimerTimeSource(const GPTimerTimeSource&) = delete;
                 GPTimerTimeSource& operator=(
                     const GPTimerTimeSource&
                 ) = delete;
-                GPTimerTimeSource(GPTimerTimeSource&&) = delete;
-                GPTimerTimeSource& operator=(GPTimerTimeSource&&) = delete;
 
-            // Getters
+                GPTimerTimeSource(
+                    GPTimerTimeSource&&
+                ) = delete;
+
+                GPTimerTimeSource& operator=(
+                    GPTimerTimeSource&&
+                ) = delete;
+
 
                 uint64_t GetTicks() const override {
                     if (!_isRunning) {
@@ -136,18 +156,26 @@ namespace ESPressio {
                     }
 
                     uint64_t count = 0;
-                    return gptimer_get_raw_count(_timer, &count) == ESP_OK
-                        ? count
-                        : 0;
+
+                    return
+                        gptimer_get_raw_count(
+                            _timer,
+                            &count
+                        ) == ESP_OK
+                            ? count
+                            : 0;
                 }
+
 
                 uint64_t GetTicksPerSecond() const override {
                     return _resolution;
                 }
 
+
                 bool GetIsAvailable() const {
                     return _isRunning;
                 }
+
 
                 esp_err_t GetInitializationResult() const {
                     return _initializationResult;
