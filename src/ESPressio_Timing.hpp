@@ -6,6 +6,11 @@
 #include "ESPressio_IClockSynchronizationTarget.hpp"
 #include "ESPressio_TimeTraits.hpp"
 
+#include "ESPressio_ISystemClockObserver.hpp"
+#include "ESPressio_IStopwatchClockObserver.hpp"
+#include "ESPressio_IRTCClockObserver.hpp"
+
+
 #include "ESPressio_LockPolicy.hpp"
 #include "ESPressio_ThreadSafeLockPolicy.hpp"
 

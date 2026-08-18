@@ -144,6 +144,32 @@ namespace ESPressio {
                 }
 
 
+                Observable::ObserverHandlePtr
+                RegisterObserver(
+                    IStopwatchClockObserver<
+                        TTime,
+                        TTick
+                    >* observer
+                ) {
+                    return
+                        _stopwatch.RegisterObserver(
+                            observer
+                        );
+                }
+
+
+                void UnregisterObserver(
+                    IStopwatchClockObserver<
+                        TTime,
+                        TTick
+                    >* observer
+                ) {
+                    _stopwatch.UnregisterObserver(
+                        observer
+                    );
+                }
+
+
                 ITimeSource*
                 GetTimeSource() {
                     return &_timeSource;

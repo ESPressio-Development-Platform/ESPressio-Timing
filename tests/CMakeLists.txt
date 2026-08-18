@@ -97,3 +97,21 @@ add_test(
     NAME SynchronizedSystemClock
     COMMAND test_synchronized_system_clock
 )
+
+
+add_executable(
+    test_observers
+    test_observers.cpp
+)
+
+target_include_directories(
+    test_observers
+    PRIVATE
+    ../src
+    ../test_support
+)
+
+add_test(
+    NAME Observers
+    COMMAND test_observers
+)

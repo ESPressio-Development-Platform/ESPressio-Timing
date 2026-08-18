@@ -4,14 +4,151 @@ Timing Components of the Flowduino ESPressio Development Platform.
 
 High-resolution system, stopwatch, and RTC clock abstractions with a generic public time representation.
 
-## Version 2.1.0
+## Version 2.2.0
 
-Version `2.1.0` extends the generic 2.x clock architecture with transport-independent System Clock synchronization and clock discipline. The generic `TTime` model introduced in 2.0.0 remains unchanged.
+Version `2.2.0` adds first-class Observer notifications throughout meaningful Timing state transitions, using ESPressio Observable 3.x. The synchronization and generic `TTime` architecture introduced in 2.0/2.1 remains unchanged.
 
 The library no longer defines one globally fixed `ClockTime` contract for every clock. Instead, clock interfaces and implementations are parameterized by their public `TTime` representation.
 
 This allows an application to use ordinary ESPressio Unit time values, opt-in Serializable Unit time values, or another compatible/custom representation without duplicating the Timing algorithms.
 
+
+
+## Observer Notifications
+
+Version `2.2.0` makes **ESPressio Observable >= 3.0.0** a required dependency and adds observer interfaces for meaningful Timing operations.
+
+Timing deliberately does **not** notify for ordinary reads such as `GetTime()`, `GetResolution()`, `GetIsRunning()`, or `GetSynchronizationStatus()`. Observer callbacks represent operations and state transitions rather than polling activity.
+
+Observable dispatchers are internally owned by `std::shared_ptr`, matching ESPressio Observable's notification-lifetime contract. Timing clocks themselves do not need to inherit from `ThreadSafeObservable`.
+
+Observer exceptions are contained by Timing and do not alter clock state or abort the Timing operation being observed.
+
+### System Clock observers
+
+Implement:
+
+```cpp
+ISystemClockObserver<ClockTick>
+```
+
+and register through any typed System Clock facade:
+
+```cpp
+class ClockObserver :
+    public Timing::ISystemClockObserver<
+        Timing::ClockTick
+    > {
+public:
+    void OnSystemClockSynchronized(
+        Timing::ClockTick before,
+        Timing::ClockTick after,
+        int64_t immediateDifference,
+        const Timing::ClockSynchronizationResult<
+            Timing::ClockTick
+        >& result,
+        const Timing::ClockSynchronizationStatus<
+            Timing::ClockTick
+        >& status
+    ) override {
+        // ...
+    }
+};
+
+ClockObserver observer;
+
+auto handle =
+    Timing::SystemClock<>::GetInstance().
+        RegisterObserver(&observer);
+```
+
+Because the observable belongs to the shared `SystemClockCore`, registering through one `SystemClock<TTime>` facade observes operations performed through every facade sharing that core.
+
+System Clock notifications include:
+
+```text
+OnSystemClockTimeSet
+OnSystemClockSynchronizationSampleAccepted
+OnSystemClockSynchronizationSampleRejected
+OnSystemClockSynchronized
+OnSystemClockSynchronizationStateChanged
+OnSystemClockSynchronizationReset
+OnSystemClockSynchronizationConfigurationChanged
+OnSystemClockCallbackScheduled
+OnSystemClockCallbackScheduleFailed
+OnSystemClockCallbackExecuted
+OnSystemClockCallbackExecutionFailed
+OnSystemClockCallbacksCleared
+```
+
+#### Synchronization before/after values
+
+`OnSystemClockSynchronized()` receives:
+
+```text
+clockBeforeNanoseconds
+clockAfterNanoseconds
+immediateDifferenceNanoseconds
+ClockSynchronizationResult
+ClockSynchronizationStatus
+```
+
+The `immediateDifferenceNanoseconds` value describes the **actual immediate public System Clock change caused by processing that synchronization sample**.
+
+This distinction matters for `SlewOnly`:
+
+```text
+measured offset       = +2,000,000 ns
+pending correction    = +2,000,000 ns
+clock before          = 10,000,000 ns
+clock after           = 10,000,000 ns
+immediate difference  = 0 ns
+```
+
+The correction is scheduled for gradual slewing, so reporting a +2 ms instantaneous clock jump would be incorrect.
+
+For `StepIfUnsynchronized` or `StepAlways`, where an immediate step is actually applied, the before/after difference reports that real step.
+
+### Stopwatch observers
+
+`IStopwatchClockObserver<TTime, TTick>` provides callbacks for:
+
+```text
+OnStopwatchStarted
+OnStopwatchStopped
+OnStopwatchReset
+OnStopwatchRestarted
+OnStopwatchTimeSet
+```
+
+Callbacks include relevant elapsed-time values, running state, and before/after difference where applicable.
+
+`GPTimerClock` delegates its observer registration to its internal Stopwatch implementation, so the same Stopwatch observer interface is used.
+
+### RTC observers
+
+`IRTCClockObserver<TTime, TTick>` provides callbacks for:
+
+```text
+OnRTCSynchronizationSucceeded
+OnRTCSynchronizationFailed
+OnRTCInterruptReceived
+OnRTCInterruptTimeReceived
+OnRTCTimeWriteSucceeded
+OnRTCTimeWriteFailed
+```
+
+Successful synchronization and write callbacks include the previous and resulting RTC-clock values plus their signed nanosecond difference.
+
+### Observer handles
+
+Registration returns the normal ESPressio Observable owning handle:
+
+```cpp
+Observable::ObserverHandlePtr
+```
+
+Destroying or explicitly unregistering the handle removes the Observer registration according to the standard ESPressio Observable lifecycle model.
 
 ## System Clock Synchronization
 

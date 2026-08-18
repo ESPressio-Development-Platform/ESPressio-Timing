@@ -1,14 +1,19 @@
 #pragma once
 
 #include <cstddef>
+#include <exception>
 #include <functional>
 #include <limits>
+#include <memory>
 #include <utility>
 
 #include "ESPressio_ClockTypes.hpp"
 #include "ESPressio_ClockDiscipline.hpp"
 #include "ESPressio_ISystemClock.hpp"
 #include "ESPressio_IClockSynchronizationTarget.hpp"
+#include "ESPressio_ISystemClockObserver.hpp"
+#include "ESPressio_TimingObservable.hpp"
+#include "ESPressio_TimingObserverUtilities.hpp"
 #include "ESPressio_TimeSource.hpp"
 #include "ESPressio_TimeTraits.hpp"
 #include "ESPressio_LockPolicy.hpp"
@@ -60,6 +65,14 @@ namespace ESPressio {
 
                 mutable ClockDiscipline<TTick>
                     _discipline;
+
+                std::shared_ptr<TimingObservable>
+                    _observable =
+                        CreateTimingObservable();
+
+                mutable ClockSynchronizationState
+                    _lastNotifiedSynchronizationState =
+                        ClockSynchronizationState::Unsynchronized;
 
                 ScheduledCallback
                     _callbacks[
@@ -234,24 +247,70 @@ namespace ESPressio {
                     const TTick sourceTime =
                         GetSourceTime();
 
-                    typename TLockPolicy::Guard
-                        lock(_clockMutex);
+                    TTick correctedTime = 0;
+                    ClockSynchronizationStatus<TTick> status;
+                    ClockSynchronizationState previousNotifiedState =
+                        ClockSynchronizationState::Unsynchronized;
+                    bool stateChanged = false;
 
-                    const TTick rawTime =
-                        GetRawTimeNanosecondsLocked(
-                            sourceTime
+                    {
+                        typename TLockPolicy::Guard
+                            lock(_clockMutex);
+
+                        const TTick rawTime =
+                            GetRawTimeNanosecondsLocked(
+                                sourceTime
+                            );
+
+                        _discipline.Advance(
+                            rawTime
                         );
 
-                    _discipline.Advance(
-                        rawTime
-                    );
+                        correctedTime =
+                            ApplySignedCorrection(
+                                rawTime,
+                                _discipline.
+                                    GetAppliedCorrectionNanoseconds()
+                            );
 
-                    return
-                        ApplySignedCorrection(
-                            rawTime,
-                            _discipline.
-                                GetAppliedCorrectionNanoseconds()
+                        status =
+                            _discipline.GetStatus(
+                                correctedTime
+                            );
+
+                        previousNotifiedState =
+                            _lastNotifiedSynchronizationState;
+
+                        if (
+                            status.State !=
+                            _lastNotifiedSynchronizationState
+                        ) {
+                            _lastNotifiedSynchronizationState =
+                                status.State;
+                            stateChanged = true;
+                        }
+                    }
+
+                    /*
+                     * A getter remains silent unless advancing the discipline
+                     * causes a genuine synchronization-state transition. That
+                     * transition is itself a meaningful clock event.
+                     */
+                    if (stateChanged) {
+                        _observable->Notify<
+                            ISystemClockObserver<TTick>
+                        >(
+                            [&](ISystemClockObserver<TTick>* observer) {
+                                observer->OnSystemClockSynchronizationStateChanged(
+                                    previousNotifiedState,
+                                    status.State,
+                                    status
+                                );
+                            }
                         );
+                    }
+
+                    return correctedTime;
                 }
 
 
@@ -272,21 +331,94 @@ namespace ESPressio {
                     const TTick sourceTime =
                         GetSourceTime();
 
-                    typename TLockPolicy::Guard
-                        lock(_clockMutex);
+                    TTick previousTime = 0;
+                    ClockSynchronizationStatus<TTick>
+                        previousStatus;
+                    ClockSynchronizationStatus<TTick>
+                        newStatus;
 
-                    _baseTime =
-                        time;
+                    {
+                        typename TLockPolicy::Guard
+                            lock(_clockMutex);
 
-                    _baseSourceTime =
-                        sourceTime;
+                        const TTick rawTime =
+                            GetRawTimeNanosecondsLocked(
+                                sourceTime
+                            );
 
-                    /*
-                     * SetTimeNanoseconds() is an explicit hard rebase. Any
-                     * synchronization estimate based on the previous phase
-                     * relationship is no longer valid.
-                     */
-                    _discipline.Reset();
+                        _discipline.Advance(
+                            rawTime
+                        );
+
+                        previousTime =
+                            ApplySignedCorrection(
+                                rawTime,
+                                _discipline.
+                                    GetAppliedCorrectionNanoseconds()
+                            );
+
+                        previousStatus =
+                            _discipline.GetStatus(
+                                previousTime
+                            );
+
+                        _baseTime = time;
+                        _baseSourceTime = sourceTime;
+
+                        /*
+                         * Explicit SetTime is a hard rebase. The previous
+                         * synchronization relationship is invalid afterwards.
+                         */
+                        _discipline.Reset();
+
+                        newStatus =
+                            _discipline.GetStatus(
+                                time
+                            );
+
+                        _lastNotifiedSynchronizationState =
+                            newStatus.State;
+                    }
+
+                    const int64_t difference =
+                        Internal::SignedDifference(
+                            time,
+                            previousTime
+                        );
+
+                    _observable->Notify<
+                        ISystemClockObserver<TTick>
+                    >(
+                        [&](ISystemClockObserver<TTick>* observer) {
+                            observer->OnSystemClockTimeSet(
+                                previousTime,
+                                time,
+                                difference
+                            );
+
+                            if (
+                                previousStatus.HasAcceptedSample ||
+                                previousStatus.State !=
+                                    ClockSynchronizationState::Unsynchronized
+                            ) {
+                                observer->OnSystemClockSynchronizationReset(
+                                    previousStatus,
+                                    newStatus
+                                );
+
+                                if (
+                                    previousStatus.State !=
+                                    newStatus.State
+                                ) {
+                                    observer->OnSystemClockSynchronizationStateChanged(
+                                        previousStatus.State,
+                                        newStatus.State,
+                                        newStatus
+                                    );
+                                }
+                            }
+                        }
+                    );
                 }
 
 
@@ -300,53 +432,141 @@ namespace ESPressio {
 
                 ClockSynchronizationResult<TTick>
                 SubmitSynchronizationSample(
-                    const ClockSynchronizationSample<TTick>&
-                        sample,
-                    ClockSynchronizationAdjustmentMode
-                        adjustmentMode =
-                            ClockSynchronizationAdjustmentMode::
-                                SlewOnly
+                    const ClockSynchronizationSample<TTick>& sample,
+                    ClockSynchronizationAdjustmentMode adjustmentMode =
+                        ClockSynchronizationAdjustmentMode::SlewOnly
                 ) {
-                    typename TLockPolicy::Guard
-                        lock(_clockMutex);
+                    ClockSynchronizationResult<TTick> result;
+                    ClockSynchronizationStatus<TTick> previousStatus;
+                    ClockSynchronizationStatus<TTick> status;
+                    TTick clockBefore = 0;
+                    TTick clockAfter = 0;
+                    ClockSynchronizationState previousNotifiedState =
+                        ClockSynchronizationState::Unsynchronized;
 
-                    const bool
-                        hadAcceptedSample =
-                            _discipline.
-                                GetStatus(
-                                    sample.
-                                        LocalRequestTransmitTime
-                                ).
-                                HasAcceptedSample;
+                    {
+                        const TTick sourceTime =
+                            GetSourceTime();
 
-                    ClockSynchronizationResult<TTick>
+                        typename TLockPolicy::Guard
+                            lock(_clockMutex);
+
+                        const TTick rawTime =
+                            GetRawTimeNanosecondsLocked(
+                                sourceTime
+                            );
+
+                        _discipline.Advance(rawTime);
+
+                        clockBefore =
+                            ApplySignedCorrection(
+                                rawTime,
+                                _discipline.
+                                    GetAppliedCorrectionNanoseconds()
+                            );
+
+                        previousStatus =
+                            _discipline.GetStatus(
+                                clockBefore
+                            );
+
+                        const bool hadAcceptedSample =
+                            previousStatus.HasAcceptedSample;
+
                         result =
-                            _discipline.
-                                SubmitSample(
-                                    sample
+                            _discipline.SubmitSample(
+                                sample
+                            );
+
+                        if (result.Accepted) {
+                            const bool applyStep =
+                                adjustmentMode ==
+                                    ClockSynchronizationAdjustmentMode::StepAlways ||
+                                (
+                                    adjustmentMode ==
+                                        ClockSynchronizationAdjustmentMode::StepIfUnsynchronized &&
+                                    !hadAcceptedSample
                                 );
 
+                            if (applyStep) {
+                                _discipline.ApplyStep(
+                                    result.FilteredOffsetNanoseconds
+                                );
+                            }
+                        }
+
+                        clockAfter =
+                            ApplySignedCorrection(
+                                rawTime,
+                                _discipline.
+                                    GetAppliedCorrectionNanoseconds()
+                            );
+
+                        status =
+                            _discipline.GetStatus(
+                                clockAfter
+                            );
+
+                        previousNotifiedState =
+                            _lastNotifiedSynchronizationState;
+
+                        _lastNotifiedSynchronizationState =
+                            status.State;
+                    }
+
                     if (!result.Accepted) {
+                        _observable->Notify<
+                            ISystemClockObserver<TTick>
+                        >(
+                            [&](ISystemClockObserver<TTick>* observer) {
+                                observer->OnSystemClockSynchronizationSampleRejected(
+                                    result,
+                                    status
+                                );
+                            }
+                        );
+
                         return result;
                     }
 
-                    const bool applyStep =
-                        adjustmentMode ==
-                            ClockSynchronizationAdjustmentMode::
-                                StepAlways ||
-                        (
-                            adjustmentMode ==
-                                ClockSynchronizationAdjustmentMode::
-                                    StepIfUnsynchronized &&
-                            !hadAcceptedSample
+                    const int64_t immediateDifference =
+                        Internal::SignedDifference(
+                            clockAfter,
+                            clockBefore
                         );
 
-                    if (applyStep) {
-                        _discipline.ApplyStep(
-                            result.
-                                FilteredOffsetNanoseconds
-                        );
-                    }
+                    _observable->Notify<
+                        ISystemClockObserver<TTick>
+                    >(
+                        [&](ISystemClockObserver<TTick>* observer) {
+                            observer->OnSystemClockSynchronizationSampleAccepted(
+                                clockBefore,
+                                clockAfter,
+                                immediateDifference,
+                                result,
+                                status
+                            );
+
+                            observer->OnSystemClockSynchronized(
+                                clockBefore,
+                                clockAfter,
+                                immediateDifference,
+                                result,
+                                status
+                            );
+
+                            if (
+                                previousNotifiedState !=
+                                status.State
+                            ) {
+                                observer->OnSystemClockSynchronizationStateChanged(
+                                    previousNotifiedState,
+                                    status.State,
+                                    status
+                                );
+                            }
+                        }
+                    );
 
                     return result;
                 }
@@ -385,14 +605,31 @@ namespace ESPressio {
 
 
                 void ConfigureSynchronization(
-                    const ClockSynchronizationConfig&
-                        config
+                    const ClockSynchronizationConfig& config
                 ) {
-                    typename TLockPolicy::Guard
-                        lock(_clockMutex);
+                    ClockSynchronizationConfig previousConfig;
 
-                    _discipline.Configure(
-                        config
+                    {
+                        typename TLockPolicy::Guard
+                            lock(_clockMutex);
+
+                        previousConfig =
+                            _discipline.GetConfig();
+
+                        _discipline.Configure(
+                            config
+                        );
+                    }
+
+                    _observable->Notify<
+                        ISystemClockObserver<TTick>
+                    >(
+                        [&](ISystemClockObserver<TTick>* observer) {
+                            observer->OnSystemClockSynchronizationConfigurationChanged(
+                                previousConfig,
+                                config
+                            );
+                        }
                     );
                 }
 
@@ -409,10 +646,69 @@ namespace ESPressio {
 
 
                 void ResetSynchronization() {
-                    typename TLockPolicy::Guard
-                        lock(_clockMutex);
+                    ClockSynchronizationStatus<TTick>
+                        previousStatus;
+                    ClockSynchronizationStatus<TTick>
+                        newStatus;
 
-                    _discipline.Reset();
+                    {
+                        const TTick sourceTime =
+                            GetSourceTime();
+
+                        typename TLockPolicy::Guard
+                            lock(_clockMutex);
+
+                        const TTick rawTime =
+                            GetRawTimeNanosecondsLocked(
+                                sourceTime
+                            );
+
+                        _discipline.Advance(rawTime);
+
+                        const TTick correctedTime =
+                            ApplySignedCorrection(
+                                rawTime,
+                                _discipline.
+                                    GetAppliedCorrectionNanoseconds()
+                            );
+
+                        previousStatus =
+                            _discipline.GetStatus(
+                                correctedTime
+                            );
+
+                        _discipline.Reset();
+
+                        newStatus =
+                            _discipline.GetStatus(
+                                correctedTime
+                            );
+
+                        _lastNotifiedSynchronizationState =
+                            newStatus.State;
+                    }
+
+                    _observable->Notify<
+                        ISystemClockObserver<TTick>
+                    >(
+                        [&](ISystemClockObserver<TTick>* observer) {
+                            observer->OnSystemClockSynchronizationReset(
+                                previousStatus,
+                                newStatus
+                            );
+
+                            if (
+                                previousStatus.State !=
+                                newStatus.State
+                            ) {
+                                observer->OnSystemClockSynchronizationStateChanged(
+                                    previousStatus.State,
+                                    newStatus.State,
+                                    newStatus
+                                );
+                            }
+                        }
+                    );
                 }
 
 
@@ -421,37 +717,53 @@ namespace ESPressio {
                     ClockCallback callback
                 ) {
                     if (!callback) {
+                        _observable->Notify<
+                            ISystemClockObserver<TTick>
+                        >(
+                            [&](ISystemClockObserver<TTick>* observer) {
+                                observer->OnSystemClockCallbackScheduleFailed(
+                                    time
+                                );
+                            }
+                        );
+
                         return false;
                     }
 
-                    typename TLockPolicy::Guard
-                        lock(_callbacksMutex);
+                    bool scheduled = false;
 
-                    for (
-                        std::size_t index = 0;
-                        index <
-                            ESPRESSIO_TIMING_MAX_CALLBACKS;
-                        ++index
-                    ) {
-                        if (
-                            !_callbacks[
-                                index
-                            ].Callback
+                    {
+                        typename TLockPolicy::Guard
+                            lock(_callbacksMutex);
+
+                        for (
+                            std::size_t index = 0;
+                            index < ESPRESSIO_TIMING_MAX_CALLBACKS;
+                            ++index
                         ) {
-                            _callbacks[index].Time =
-                                time;
-
-                            _callbacks[index].
-                                Callback =
-                                    std::move(
-                                        callback
-                                    );
-
-                            return true;
+                            if (!_callbacks[index].Callback) {
+                                _callbacks[index].Time = time;
+                                _callbacks[index].Callback =
+                                    std::move(callback);
+                                scheduled = true;
+                                break;
+                            }
                         }
                     }
 
-                    return false;
+                    _observable->Notify<
+                        ISystemClockObserver<TTick>
+                    >(
+                        [&](ISystemClockObserver<TTick>* observer) {
+                            if (scheduled) {
+                                observer->OnSystemClockCallbackScheduled(time);
+                            } else {
+                                observer->OnSystemClockCallbackScheduleFailed(time);
+                            }
+                        }
+                    );
+
+                    return scheduled;
                 }
 
 
@@ -459,34 +771,33 @@ namespace ESPressio {
                     const TTick currentTime =
                         GetTimeNanoseconds();
 
-                    ClockCallback
-                        callbacks[
-                            ESPRESSIO_TIMING_MAX_CALLBACKS
-                        ];
+                    ClockCallback callbacks[
+                        ESPRESSIO_TIMING_MAX_CALLBACKS
+                    ];
+
+                    TTick scheduledTimes[
+                        ESPRESSIO_TIMING_MAX_CALLBACKS
+                    ] = {};
 
                     {
                         typename TLockPolicy::Guard
-                            lock(
-                                _callbacksMutex
-                            );
+                            lock(_callbacksMutex);
 
                         for (
                             std::size_t index = 0;
-                            index <
-                                ESPRESSIO_TIMING_MAX_CALLBACKS;
+                            index < ESPRESSIO_TIMING_MAX_CALLBACKS;
                             ++index
                         ) {
                             if (
-                                _callbacks[index].
-                                    Callback &&
-                                currentTime >=
-                                    _callbacks[index].
-                                        Time
+                                _callbacks[index].Callback &&
+                                currentTime >= _callbacks[index].Time
                             ) {
+                                scheduledTimes[index] =
+                                    _callbacks[index].Time;
+
                                 callbacks[index] =
                                     std::move(
-                                        _callbacks[index].
-                                            Callback
+                                        _callbacks[index].Callback
                                     );
 
                                 _callbacks[index] =
@@ -497,32 +808,113 @@ namespace ESPressio {
 
                     for (
                         std::size_t index = 0;
-                        index <
-                            ESPRESSIO_TIMING_MAX_CALLBACKS;
+                        index < ESPRESSIO_TIMING_MAX_CALLBACKS;
                         ++index
                     ) {
                         if (callbacks[index]) {
-                            callbacks[index]();
+                            try {
+                                callbacks[index]();
+                            } catch (...) {
+                                const TTick actualTime =
+                                    GetTimeNanoseconds();
+
+                                const int64_t difference =
+                                    Internal::SignedDifference(
+                                        actualTime,
+                                        scheduledTimes[index]
+                                    );
+
+                                const std::exception_ptr cause =
+                                    std::current_exception();
+
+                                _observable->Notify<
+                                    ISystemClockObserver<TTick>
+                                >(
+                                    [&](ISystemClockObserver<TTick>* observer) {
+                                        observer->OnSystemClockCallbackExecutionFailed(
+                                            scheduledTimes[index],
+                                            actualTime,
+                                            difference,
+                                            cause
+                                        );
+                                    }
+                                );
+
+                                std::rethrow_exception(cause);
+                            }
+
+                            const TTick actualTime =
+                                GetTimeNanoseconds();
+
+                            const int64_t difference =
+                                Internal::SignedDifference(
+                                    actualTime,
+                                    scheduledTimes[index]
+                                );
+
+                            _observable->Notify<
+                                ISystemClockObserver<TTick>
+                            >(
+                                [&](ISystemClockObserver<TTick>* observer) {
+                                    observer->OnSystemClockCallbackExecuted(
+                                        scheduledTimes[index],
+                                        actualTime,
+                                        difference
+                                    );
+                                }
+                            );
                         }
                     }
                 }
 
 
                 void ClearCallbacks() {
-                    typename TLockPolicy::Guard
-                        lock(
-                            _callbacksMutex
-                        );
+                    std::size_t clearedCount = 0;
 
-                    for (
-                        std::size_t index = 0;
-                        index <
-                            ESPRESSIO_TIMING_MAX_CALLBACKS;
-                        ++index
-                    ) {
-                        _callbacks[index] =
-                            ScheduledCallback();
+                    {
+                        typename TLockPolicy::Guard
+                            lock(_callbacksMutex);
+
+                        for (
+                            std::size_t index = 0;
+                            index < ESPRESSIO_TIMING_MAX_CALLBACKS;
+                            ++index
+                        ) {
+                            if (_callbacks[index].Callback) {
+                                ++clearedCount;
+                            }
+
+                            _callbacks[index] =
+                                ScheduledCallback();
+                        }
                     }
+
+                    if (clearedCount > 0) {
+                        _observable->Notify<
+                            ISystemClockObserver<TTick>
+                        >(
+                            [&](ISystemClockObserver<TTick>* observer) {
+                                observer->OnSystemClockCallbacksCleared(
+                                    clearedCount
+                                );
+                            }
+                        );
+                    }
+                }
+
+
+                Observable::ObserverHandlePtr
+                RegisterObserver(
+                    ISystemClockObserver<TTick>* observer
+                ) {
+                    return _observable->RegisterObserver(observer);
+                }
+
+
+                void UnregisterObserver(
+                    ISystemClockObserver<TTick>* observer
+                ) {
+                    _observable->UnregisterObserver(observer);
                 }
 
 
@@ -767,6 +1159,26 @@ namespace ESPressio {
                 void ClearCallbacks() override {
                     _core.
                         ClearCallbacks();
+                }
+
+
+                Observable::ObserverHandlePtr
+                RegisterObserver(
+                    ISystemClockObserver<TTick>* observer
+                ) {
+                    return
+                        _core.RegisterObserver(
+                            observer
+                        );
+                }
+
+
+                void UnregisterObserver(
+                    ISystemClockObserver<TTick>* observer
+                ) {
+                    _core.UnregisterObserver(
+                        observer
+                    );
                 }
 
 
