@@ -62,3 +62,38 @@ add_test(
     NAME SystemClockSharedCore
     COMMAND test_system_clock_shared_core
 )
+
+
+add_executable(
+    test_clock_synchronization
+    test_clock_synchronization.cpp
+)
+
+target_include_directories(
+    test_clock_synchronization
+    PRIVATE
+    ../src
+    ../test_support
+)
+
+add_executable(
+    test_synchronized_system_clock
+    test_synchronized_system_clock.cpp
+)
+
+target_include_directories(
+    test_synchronized_system_clock
+    PRIVATE
+    ../src
+    ../test_support
+)
+
+add_test(
+    NAME ClockSynchronization
+    COMMAND test_clock_synchronization
+)
+
+add_test(
+    NAME SynchronizedSystemClock
+    COMMAND test_synchronized_system_clock
+)

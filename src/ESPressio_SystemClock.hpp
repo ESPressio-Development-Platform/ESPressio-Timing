@@ -6,7 +6,9 @@
 #include <utility>
 
 #include "ESPressio_ClockTypes.hpp"
+#include "ESPressio_ClockDiscipline.hpp"
 #include "ESPressio_ISystemClock.hpp"
+#include "ESPressio_IClockSynchronizationTarget.hpp"
 #include "ESPressio_TimeSource.hpp"
 #include "ESPressio_TimeTraits.hpp"
 #include "ESPressio_LockPolicy.hpp"
@@ -55,6 +57,9 @@ namespace ESPressio {
 
                 TTick _baseTime = 0;
                 TTick _baseSourceTime = 0;
+
+                mutable ClockDiscipline<TTick>
+                    _discipline;
 
                 ScheduledCallback
                     _callbacks[
@@ -111,6 +116,83 @@ namespace ESPressio {
                 }
 
 
+                static TTick ApplySignedCorrection(
+                    TTick value,
+                    int64_t correction
+                ) {
+                    if (correction >= 0) {
+                        const uint64_t positive =
+                            static_cast<uint64_t>(
+                                correction
+                            );
+
+                        return
+                            positive >
+                                static_cast<uint64_t>(
+                                    std::numeric_limits<
+                                        TTick
+                                    >::max() -
+                                    value
+                                )
+                                ? std::numeric_limits<
+                                    TTick
+                                  >::max()
+                                : static_cast<TTick>(
+                                    value +
+                                    static_cast<TTick>(
+                                        positive
+                                    )
+                                  );
+                    }
+
+                    const uint64_t magnitude =
+                        correction ==
+                            std::numeric_limits<
+                                int64_t
+                            >::min()
+                            ? static_cast<uint64_t>(
+                                std::numeric_limits<
+                                    int64_t
+                                >::max()
+                              ) +
+                              1ULL
+                            : static_cast<uint64_t>(
+                                -correction
+                              );
+
+                    return
+                        magnitude >
+                            static_cast<uint64_t>(
+                                value
+                            )
+                            ? 0
+                            : static_cast<TTick>(
+                                value -
+                                static_cast<TTick>(
+                                    magnitude
+                                )
+                              );
+                }
+
+
+                TTick GetRawTimeNanosecondsLocked(
+                    TTick sourceTime
+                ) const {
+                    const TTick elapsed =
+                        sourceTime >=
+                            _baseSourceTime
+                            ? sourceTime -
+                                _baseSourceTime
+                            : 0;
+
+                    return
+                        AddSaturated(
+                            _baseTime,
+                            elapsed
+                        );
+                }
+
+
             public:
                 using TickType = TTick;
 
@@ -155,17 +237,21 @@ namespace ESPressio {
                     typename TLockPolicy::Guard
                         lock(_clockMutex);
 
-                    const TTick elapsed =
-                        sourceTime >=
-                            _baseSourceTime
-                            ? sourceTime -
-                                _baseSourceTime
-                            : 0;
+                    const TTick rawTime =
+                        GetRawTimeNanosecondsLocked(
+                            sourceTime
+                        );
 
-                    return AddSaturated(
-                        _baseTime,
-                        elapsed
+                    _discipline.Advance(
+                        rawTime
                     );
+
+                    return
+                        ApplySignedCorrection(
+                            rawTime,
+                            _discipline.
+                                GetAppliedCorrectionNanoseconds()
+                        );
                 }
 
 
@@ -194,6 +280,139 @@ namespace ESPressio {
 
                     _baseSourceTime =
                         sourceTime;
+
+                    /*
+                     * SetTimeNanoseconds() is an explicit hard rebase. Any
+                     * synchronization estimate based on the previous phase
+                     * relationship is no longer valid.
+                     */
+                    _discipline.Reset();
+                }
+
+
+                TTick
+                GetSynchronizationTimestampNanoseconds()
+                    const {
+                    return
+                        GetTimeNanoseconds();
+                }
+
+
+                ClockSynchronizationResult<TTick>
+                SubmitSynchronizationSample(
+                    const ClockSynchronizationSample<TTick>&
+                        sample,
+                    ClockSynchronizationAdjustmentMode
+                        adjustmentMode =
+                            ClockSynchronizationAdjustmentMode::
+                                SlewOnly
+                ) {
+                    typename TLockPolicy::Guard
+                        lock(_clockMutex);
+
+                    const bool
+                        hadAcceptedSample =
+                            _discipline.
+                                GetStatus(
+                                    sample.
+                                        LocalRequestTransmitTime
+                                ).
+                                HasAcceptedSample;
+
+                    ClockSynchronizationResult<TTick>
+                        result =
+                            _discipline.
+                                SubmitSample(
+                                    sample
+                                );
+
+                    if (!result.Accepted) {
+                        return result;
+                    }
+
+                    const bool applyStep =
+                        adjustmentMode ==
+                            ClockSynchronizationAdjustmentMode::
+                                StepAlways ||
+                        (
+                            adjustmentMode ==
+                                ClockSynchronizationAdjustmentMode::
+                                    StepIfUnsynchronized &&
+                            !hadAcceptedSample
+                        );
+
+                    if (applyStep) {
+                        _discipline.ApplyStep(
+                            result.
+                                FilteredOffsetNanoseconds
+                        );
+                    }
+
+                    return result;
+                }
+
+
+                ClockSynchronizationStatus<TTick>
+                GetSynchronizationStatus() const {
+                    const TTick sourceTime =
+                        GetSourceTime();
+
+                    typename TLockPolicy::Guard
+                        lock(_clockMutex);
+
+                    const TTick rawTime =
+                        GetRawTimeNanosecondsLocked(
+                            sourceTime
+                        );
+
+                    _discipline.Advance(
+                        rawTime
+                    );
+
+                    const TTick correctedTime =
+                        ApplySignedCorrection(
+                            rawTime,
+                            _discipline.
+                                GetAppliedCorrectionNanoseconds()
+                        );
+
+                    return
+                        _discipline.
+                            GetStatus(
+                                correctedTime
+                            );
+                }
+
+
+                void ConfigureSynchronization(
+                    const ClockSynchronizationConfig&
+                        config
+                ) {
+                    typename TLockPolicy::Guard
+                        lock(_clockMutex);
+
+                    _discipline.Configure(
+                        config
+                    );
+                }
+
+
+                ClockSynchronizationConfig
+                GetSynchronizationConfig() const {
+                    typename TLockPolicy::Guard
+                        lock(_clockMutex);
+
+                    return
+                        _discipline.
+                            GetConfig();
+                }
+
+
+                void ResetSynchronization() {
+                    typename TLockPolicy::Guard
+                        lock(_clockMutex);
+
+                    _discipline.Reset();
                 }
 
 
@@ -329,6 +548,9 @@ namespace ESPressio {
         class SystemClock :
             public ISystemClock<
                 TTime
+            >,
+            public IClockSynchronizationTarget<
+                TTick
             > {
 
             private:
@@ -440,6 +662,68 @@ namespace ESPressio {
                                     time
                                 )
                         );
+                }
+
+
+                TTick
+                GetSynchronizationTimestampNanoseconds()
+                    const override {
+                    return
+                        _core.
+                            GetSynchronizationTimestampNanoseconds();
+                }
+
+
+                ClockSynchronizationResult<TTick>
+                SubmitSynchronizationSample(
+                    const ClockSynchronizationSample<TTick>&
+                        sample,
+                    ClockSynchronizationAdjustmentMode
+                        adjustmentMode =
+                            ClockSynchronizationAdjustmentMode::
+                                SlewOnly
+                ) override {
+                    return
+                        _core.
+                            SubmitSynchronizationSample(
+                                sample,
+                                adjustmentMode
+                            );
+                }
+
+
+                ClockSynchronizationStatus<TTick>
+                GetSynchronizationStatus()
+                    const override {
+                    return
+                        _core.
+                            GetSynchronizationStatus();
+                }
+
+
+                void ConfigureSynchronization(
+                    const ClockSynchronizationConfig&
+                        config
+                ) override {
+                    _core.
+                        ConfigureSynchronization(
+                            config
+                        );
+                }
+
+
+                ClockSynchronizationConfig
+                GetSynchronizationConfig()
+                    const override {
+                    return
+                        _core.
+                            GetSynchronizationConfig();
+                }
+
+
+                void ResetSynchronization() override {
+                    _core.
+                        ResetSynchronization();
                 }
 
 

@@ -4,13 +4,275 @@ Timing Components of the Flowduino ESPressio Development Platform.
 
 High-resolution system, stopwatch, and RTC clock abstractions with a generic public time representation.
 
-## Version 2.0.0
+## Version 2.1.0
 
-Version `2.0.0` is a deliberate breaking architectural release.
+Version `2.1.0` extends the generic 2.x clock architecture with transport-independent System Clock synchronization and clock discipline. The generic `TTime` model introduced in 2.0.0 remains unchanged.
 
 The library no longer defines one globally fixed `ClockTime` contract for every clock. Instead, clock interfaces and implementations are parameterized by their public `TTime` representation.
 
 This allows an application to use ordinary ESPressio Unit time values, opt-in Serializable Unit time values, or another compatible/custom representation without duplicating the Timing algorithms.
+
+
+## System Clock Synchronization
+
+Version `2.1.0` adds a transport-independent synchronization and clock-discipline layer to the shared `SystemClockCore`.
+
+The design deliberately separates:
+
+```text
+transport
+    |
+    | captures / carries four timestamps
+    v
+IClockSynchronizationTarget
+    |
+    v
+ClockDiscipline
+    |
+    +-- offset estimation
+    +-- round-trip-delay estimation
+    +-- sample validation/rejection
+    +-- phase filtering
+    +-- monotonic phase slewing
+    +-- residual drift estimation
+    +-- continuous rate correction
+    |
+    v
+SystemClockCore
+    |
+    +-------------------------+
+    |                         |
+    v                         v
+SystemClock<Time>   SystemClock<SerializableTime>
+```
+
+Timing has no ESP-NOW, Wi-Fi, UDP, Ethernet, CAN, LoRa, MAC-address, peer, master-election, or packet-format concepts.
+
+A transport library only needs to implement the message exchange required to capture four timestamps:
+
+```text
+Local                         Remote
+
+T1 request transmit  -------->
+                      <-------- T2 request receive
+                      <-------- T3 response transmit
+T4 response receive
+```
+
+and submit:
+
+```cpp
+ClockSynchronizationSample<ClockTick> sample;
+
+sample.LocalRequestTransmitTime   = t1;
+sample.RemoteRequestReceiveTime   = t2;
+sample.RemoteResponseTransmitTime = t3;
+sample.LocalResponseReceiveTime   = t4;
+
+auto result =
+    SystemClock<>::GetInstance().
+        SubmitSynchronizationSample(
+            sample
+        );
+```
+
+The standard two-way estimates are calculated inside Timing:
+
+```text
+round-trip delay =
+    (T4 - T1) - (T3 - T2)
+
+clock offset =
+    ((T2 - T1) + (T3 - T4)) / 2
+```
+
+### Synchronization target interface
+
+Transport implementations should depend on:
+
+```cpp
+IClockSynchronizationTarget<ClockTick>
+```
+
+rather than on a particular `SystemClock<TTime>` specialization.
+
+The interface exposes:
+
+```cpp
+GetSynchronizationTimestampNanoseconds()
+SubmitSynchronizationSample(...)
+GetSynchronizationStatus()
+ConfigureSynchronization(...)
+GetSynchronizationConfig()
+ResetSynchronization()
+```
+
+Because synchronization operates in the raw nanosecond clock domain, it is independent of the public Unit representation.
+
+### Synchronization state
+
+Synchronization status reports:
+
+```cpp
+ClockSynchronizationState::Unsynchronized
+ClockSynchronizationState::Acquiring
+ClockSynchronizationState::Synchronized
+```
+
+along with:
+
+```text
+last measured offset
+filtered offset
+pending phase correction
+applied correction
+round-trip delay
+estimated drift in ppm
+accepted/rejected sample counts
+last accepted sample time
+```
+
+A synchronized state can become stale when no accepted sample has arrived within the configured maximum age.
+
+### Sample rejection
+
+Malformed exchanges are rejected.
+
+A configurable maximum round-trip delay also allows a transport to discard high-jitter/high-latency samples before they influence the clock.
+
+### Monotonic phase slewing
+
+The default adjustment mode is:
+
+```cpp
+ClockSynchronizationAdjustmentMode::SlewOnly
+```
+
+A synchronization sample therefore does not abruptly rebase the System Clock.
+
+Instead, the measured phase error is removed gradually at the configured maximum slew rate. This preserves monotonic progression and is the recommended mode while deadline-driven consumers such as Precision Threads are running.
+
+The default maximum phase slew rate is:
+
+```text
+500 ppm
+```
+
+and can be configured.
+
+### Startup stepping
+
+Large initial offsets can take a long time to remove with a conservative slew rate.
+
+For startup/bootstrap, before monotonic deadline consumers begin operating, an application may explicitly request:
+
+```cpp
+ClockSynchronizationAdjustmentMode::
+    StepIfUnsynchronized
+```
+
+This permits the first accepted synchronization sample to perform an immediate phase correction. Later samples return to normal slewing.
+
+An explicit:
+
+```cpp
+ClockSynchronizationAdjustmentMode::
+    StepAlways
+```
+
+is also available, but it may move the System Clock forwards or backwards and should not normally be used while monotonic consumers are active.
+
+### Drift estimation and rate correction
+
+Once phase error is settled, successive accepted samples can estimate residual relative clock-rate error.
+
+The estimate is expressed in parts per million:
+
+```text
+EstimatedDriftPpm
+```
+
+and is applied continuously as a rate correction between synchronization exchanges.
+
+Drift learning is deliberately suspended while a significant phase slew is in progress so intentional phase correction is not mistaken for oscillator drift.
+
+The maximum learned drift correction, learning interval, filtering weights, and phase-learning threshold are configurable.
+
+### Configuration
+
+`ClockSynchronizationConfig` controls:
+
+```text
+MaximumRoundTripDelayNanoseconds
+MaximumSlewRatePpm
+MaximumDriftCorrectionPpm
+OffsetFilterWeight
+DriftFilterWeight
+DriftLearningPhaseThresholdNanoseconds
+MinimumDriftLearningIntervalNanoseconds
+SynchronizationToleranceNanoseconds
+MinimumSamplesForSynchronizedState
+MaximumSampleAgeNanoseconds
+```
+
+For example:
+
+```cpp
+ClockSynchronizationConfig config;
+
+config.MaximumRoundTripDelayNanoseconds =
+    10000000ULL; // 10 ms
+
+config.MaximumSlewRatePpm =
+    500;
+
+config.SynchronizationToleranceNanoseconds =
+    500000ULL; // 0.5 ms
+
+SystemClock<>::GetInstance().
+    ConfigureSynchronization(
+        config
+    );
+```
+
+### Shared System Clock semantics
+
+Synchronization is owned by `SystemClockCore`, not by the typed facade.
+
+Therefore:
+
+```cpp
+SystemClock<DefaultClockTime>
+SystemClock<MyCustomTime>
+SystemClock<SerializableClockTime>
+```
+
+all observe exactly the same disciplined System Clock on the device.
+
+### SetTime and synchronization
+
+Calling:
+
+```cpp
+SystemClock<TTime>::SetTime(...)
+```
+
+is an explicit hard rebase.
+
+It resets the current synchronization/discipline state because previously measured phase and drift estimates are no longer valid after the rebase.
+
+### Transport integration
+
+A future ESP-NOW implementation can capture timestamps through the synchronization-target interface and submit complete samples without requiring any ESP-NOW-specific functionality inside ESPressio Timing.
+
+The same Timing API can equally be used by UDP, Ethernet, CAN, serial, LoRa, or another transport.
+
+See:
+
+```text
+examples/ClockSynchronization
+```
+
 
 ## Core Design
 
@@ -327,7 +589,7 @@ instead of naming `DefaultClockTime`.
 
 ```ini
 lib_deps =
-    flowduino/ESPressio-Timing@^2.0.0
+    flowduino/ESPressio-Timing@^2.1.0
 ```
 
 A project selecting Serializable Units additionally declares the appropriate ESPressio Units version and ESPressio Serializable dependency.

@@ -1,6 +1,9 @@
 #pragma once
 
 #include "ESPressio_ClockTypes.hpp"
+#include "ESPressio_ClockSynchronization.hpp"
+#include "ESPressio_ClockDiscipline.hpp"
+#include "ESPressio_IClockSynchronizationTarget.hpp"
 #include "ESPressio_TimeTraits.hpp"
 
 #include "ESPressio_LockPolicy.hpp"

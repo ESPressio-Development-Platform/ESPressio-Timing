@@ -1,7 +1,7 @@
 {
     "name": "ESPressio-Timing",
-    "description": "Generic high-resolution system, stopwatch, and RTC clock abstractions",
-    "keywords": "timing,clock,stopwatch,rtc,monotonic,precision,units,generic,espressio",
+    "description": "Generic high-resolution clocks with transport-independent system-clock synchronization and discipline",
+    "keywords": "timing,clock,stopwatch,rtc,synchronization,discipline,drift,monotonic,precision,units,generic,espressio",
     "authors": {
         "name": "Flowduino",
         "maintainer": true,
@@ -16,7 +16,7 @@
         "type": "git",
         "url": "https://github.com/Flowduino/ESPressio-Timing.git"
     },
-    "version": "2.0.0",
+    "version": "2.1.0",
     "license": "Apache-2.0",
     "frameworks": "arduino",
     "platforms": "*",
