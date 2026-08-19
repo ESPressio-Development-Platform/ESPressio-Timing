@@ -16,20 +16,20 @@
         "type": "git",
         "url": "https://github.com/Flowduino/ESPressio-Timing.git"
     },
-    "version": "2.2.0",
+    "version": "2.2.1",
     "license": "Apache-2.0",
     "frameworks": "arduino",
     "platforms": "*",
     "dependencies": [
         {
             "name": "Flowduino ESPressio-Units",
-            "version": ">=0.2.0",
+            "version": ">=0.2.1 <1.0.0",
             "url": "https://github.com/Flowduino/ESPressio-Units.git",
             "platforms": "*"
         },
         {
             "name": "Flowduino ESPressio-Observable",
-            "version": ">=3.0.0",
+            "version": ">=3.0.0 <4.0.0",
             "url": "https://github.com/Flowduino/ESPressio-Observable.git",
             "platforms": "*"
         }
