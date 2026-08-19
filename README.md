@@ -4,6 +4,19 @@ Timing Components of the Flowduino ESPressio Development Platform.
 
 High-resolution system, stopwatch, and RTC clock abstractions with a generic public time representation.
 
+## ESPressio Library Dependencies
+
+ESPressio is designed as a modular ecosystem of independently useful libraries, with required dependencies kept explicit and optional integrations introduced only when the corresponding functionality is selected.
+
+For a complete overview of the relationships between ESPressio libraries—including required dependencies, opt-in dependencies, and the overall dependency hierarchy—see:
+
+**[ESPressio Library Dependency Chart](ESPRESSIO_DEPENDENCY_CHART.md)**
+
+In the dependency chart:
+
+- **Solid relationships** represent required ESPressio library dependencies.
+- **Dashed relationships** represent opt-in dependencies that are introduced only when the corresponding feature, integration, type, or header is used.
+
 ## Version 2.2.0
 
 Version `2.2.0` adds first-class Observer notifications throughout meaningful Timing state transitions, using ESPressio Observable 3.x. The synchronization and generic `TTime` architecture introduced in 2.0/2.1 remains unchanged.
