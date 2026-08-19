@@ -1,87 +1,78 @@
 # Changelog
 
-## 2.2.0
+All notable changes to this project are documented in this file.
 
-Additive Observable integration release.
+The structure follows the principles of [Keep a
+Changelog](https://keepachangelog.com/en/1.1.0/) and [Semantic
+Versioning](https://semver.org/).
 
-### Observable dependency
+> **Historical note:** This changelog was reconstructed retrospectively
+> from published GitHub Releases, tags, release notes, repository
+> history, and the documented public API. Where an historical release
+> had little or no release-note detail, the entry is intentionally terse
+> rather than inferring unsupported intent.
 
-- Added required dependency on ESPressio Observable `>=3.0.0`.
-- Added internally shared-owned `TimingObservable` dispatchers compatible with Observable 3.x notification lifetime semantics.
-- Observer callback failures are contained and cannot change Timing operation results.
+## \[2.2.0\] - 2026-08-18
 
-### System Clock observers
+### Added
 
-- Added `ISystemClockObserver<TTick>`.
-- Added notifications for explicit `SetTime()` rebases, including previous/new values and signed difference.
-- Added accepted and rejected synchronization-sample notifications.
-- Added `OnSystemClockSynchronized()` with actual clock value before synchronization processing, immediate clock value afterwards, signed immediate difference, full synchronization result, and resulting status.
-- Added synchronization-state transition notifications.
-- Added synchronization reset and configuration-change notifications.
-- Added callback scheduled/scheduling-failed/executed/execution-failed notifications.
-- Added callback-clear notification including number of removed callbacks.
-- System Clock observers are owned by the shared `SystemClockCore`, so all typed `SystemClock<TTime>` facades expose the same observer channel.
+-   Added first-class ESPressio Observable support throughout Timing.
+-   Added System Clock Observer notifications for synchronization
+    lifecycle and state changes.
+-   Added rich before/after synchronization information, including
+    clock-difference data.
+-   Added notifications for synchronization reset and other logical
+    clock operations where observation is meaningful.
 
-### Stopwatch observers
+### Changed
 
-- Added `IStopwatchClockObserver<TTime, TTick>`.
-- Added notifications for Start, Stop, Reset, Restart, and SetTime.
-- Added relevant elapsed before/after values, signed differences, and running-state information.
-- `GPTimerClock` forwards Stopwatch observer registration to its internal Stopwatch.
+-   Made ESPressio Observable 3.x part of the Timing notification
+    architecture.
+-   Preserved synchronous Observer semantics so higher-level libraries
+    can optionally bridge notifications into asynchronous Events.
 
-### RTC observers
+## \[2.1.0\] - 2026-08-18
 
-- Added `IRTCClockObserver<TTime, TTick>`.
-- Added synchronization success/failure notifications.
-- Added RTC interrupt notifications, including supplied interrupt time when present.
-- Added RTC write success/failure notifications.
-- Successful synchronization/write notifications include previous/new values and signed difference.
+### Added
 
-### Tests
+-   Added transport-independent System Clock synchronization and clock
+    discipline.
+-   Added synchronization target/sample abstractions suitable for
+    ESP-NOW, UDP, TCP, WebSocket, and future transports.
+-   Added four-timestamp request/response synchronization support.
+-   Added synchronization state and correction policy infrastructure.
 
-- Added observer regression coverage for System Clock synchronization, rejected samples, state changes, scheduled callbacks, callback failures, Stopwatch operations, and RTC operations.
+### Changed
 
-## 2.1.0
+-   Kept synchronization calculations and System Clock discipline inside
+    Timing while leaving message transport to dedicated communication
+    libraries.
 
-Additive synchronization release.
+## \[2.0.0\] - 2026-08-18
 
-### System Clock synchronization
+### Added
 
-- Added transport-independent `ClockSynchronizationSample<TTick>`.
-- Added NTP-style four-timestamp offset and round-trip-delay estimation.
-- Added malformed/high-delay sample rejection.
-- Added `ClockSynchronizationConfig`, result and status types.
-- Added `ClockSynchronizationState`.
-- Added `ClockSynchronizationAdjustmentMode`.
-- Added `IClockSynchronizationTarget<TTick>` for transport integrations.
-- Added `ClockDiscipline<TTick>`.
-- Added monotonic phase slewing with configurable maximum slew rate.
-- Added explicit startup stepping through `StepIfUnsynchronized`.
-- Added explicit `StepAlways` mode for callers that knowingly permit discontinuous rebasing.
-- Added filtered residual drift estimation and continuous ppm rate correction.
-- Added synchronization staleness handling and accepted/rejected sample counters.
-- Integrated discipline into the single shared `SystemClockCore`, so all `SystemClock<TTime>` facades observe the same synchronized timeline.
-- `SystemClock<TTime>::SetTime()` now resets synchronization state after an explicit hard rebase.
-- Added transport-neutral synchronization example and host regression tests.
+-   Added generic public time representations through
+    `TimeTraits<TTime>`.
+-   Added support for custom Timing-compatible public time
+    representations.
+-   Added independently configurable raw tick/storage representation.
+-   Added typed `SystemClock<TTime>` facades over a single shared System
+    Clock core.
 
-## 2.0.0
+### Changed
 
-Major architectural release.
+-   Separated internal nanosecond/tick arithmetic from public Unit
+    representation.
+-   Redesigned System Clock singleton handling so different template
+    representations do not create separate system timelines.
+-   Enabled ordinary and Serializable ESPressio Unit time types without
+    introducing a direct Serializable dependency.
 
-### Breaking changes
+## \[1.1.0\] - 2026-08-13
 
-- `IClock`, `IClockSettable`, `IStopwatchClock`, `ISystemClock`, and `IRTCClock` are now templates over `TTime`.
-- `StopwatchClock`, `SystemClock`, `RTCClockBase`, and `GPTimerClock` are now primary class templates.
-- The global `ClockTime` API contract has been replaced by `DefaultClockTime` plus each clock's `TimeType`.
-- `SetTime()` and related APIs accept `const TTime&`.
-- Public time representation and raw tick-storage representation are independent template parameters.
+### Added
 
-### New architecture
-
-- `SystemClock<TTime>` is now a typed facade over one shared `SystemClockCore<TLockPolicy, TTick>` singleton, so different time representations observe the same global timeline and callback scheduler.
-
-- Added `TimeTraits<TTime>` customization point.
-- Added configurable raw `TTick` storage/arithmetic type.
-- Raw time-source APIs remain independent of public Unit representation.
-- Ordinary ESPressio Units remain the default.
-- Optional Serializable Unit types can be selected as `TTime` without ESPressio Timing depending upon ESPressio Serializable.
+-   Initial public release of ESPressio Timing.
+-   Added the original clock, stopwatch, RTC/time-source, System Clock,
+    and callback-scheduling foundation.
