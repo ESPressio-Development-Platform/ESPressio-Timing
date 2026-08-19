@@ -4,6 +4,17 @@ Timing Components of the Flowduino ESPressio Development Platform.
 
 High-resolution system, stopwatch, and RTC clock abstractions with a generic public time representation.
 
+## Latest Stable Version
+
+The latest stable version is **2.2.1**.
+
+### Current ESPressio dependencies
+
+- **ESPressio Units >= 0.2.1 < 1.0.0**
+- **ESPressio Observable >= 3.0.0 < 4.0.0**
+
+Version 2.2.1 is a dependency-maintenance release. It retains the Timing 2.2.0 public API and behaviour while updating the active ESPressio dependency baselines and bounding them to their current major release lines.
+
 ## Version 2.2.0
 
 Version `2.2.0` adds first-class Observer notifications throughout meaningful Timing state transitions, using ESPressio Observable 3.x. The synchronization and generic `TTime` architecture introduced in 2.0/2.1 remains unchanged.
