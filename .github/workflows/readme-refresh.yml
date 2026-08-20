@@ -1,0 +1,42 @@
+name: Refresh dependency README
+
+on:
+  push:
+    branches:
+      - feature/5-units-0.2.2-dependency-refresh
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/5-units-0.2.2-dependency-refresh
+      - name: Refresh current-version documentation
+        shell: python
+        run: |
+          from pathlib import Path
+          path = Path('README.md')
+          text = path.read_text()
+          replacements = {
+              'The latest stable version is **2.2.2**.': 'The current version is **2.2.3**.',
+              '- **ESPressio Units >= 0.2.1 < 1.0.0**': '- **ESPressio Units >= 0.2.2 < 1.0.0**',
+              'Version 2.2.2 is a dependency-maintenance release. It retains the Timing 2.2.1 public API and behaviour while updating the active ESPressio dependency baselines to the latest validated patch releases within their current major release lines.': 'Version 2.2.3 is a dependency-maintenance release. It retains the Timing 2.2.x public API and behaviour while updating the required ESPressio Units baseline to 0.2.2, which in turn carries the optional Serializable 0.10.1 integration. Timing itself remains independent of ESPressio Serializable.',
+          }
+          for old, new in replacements.items():
+              if old not in text:
+                  raise SystemExit(f'missing expected README text: {old}')
+              text = text.replace(old, new, 1)
+          path.write_text(text)
+      - name: Commit README
+        run: |
+          if git diff --quiet -- README.md; then exit 0; fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- README.md
+          git commit -m 'docs: refresh Timing 2.2.3 README (#5)'
+          git push origin HEAD:feature/5-units-0.2.2-dependency-refresh
