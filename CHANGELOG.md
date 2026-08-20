@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.2.2 — 2026-08-20
+
+### Changed
+- Raised the minimum ESPressio Observable dependency from 3.0.0 to 3.0.1 so Timing explicitly consumes the latest validated Observable 3.x patch release and its zero-observer notification fast path.
+- Preserved the existing Timing 2.2.x public API and behaviour; this release is dependency-maintenance only.
+
 ## 2.2.1 — 2026-08-19
 
 ### Changed
@@ -85,7 +91,7 @@ Major architectural release.
 
 ### New architecture
 
-- `SystemClock<TTime>` is now a typed facade over one shared `SystemClockCore<TLockPolicy, TTick>` singleton, so different time representations observe the same global timeline and callback scheduler.
+- `SystemClock<TTime>` is now a typed facade over one shared `SystemClockCore<TLockPolicy, TTick>` singleton, so different time representations observe the same global timeline.
 
 - Added `TimeTraits<TTime>` customization point.
 - Added configurable raw `TTick` storage/arithmetic type.
