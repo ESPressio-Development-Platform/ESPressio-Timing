@@ -6,14 +6,14 @@ High-resolution system, stopwatch, and RTC clock abstractions with a generic pub
 
 ## Latest Stable Version
 
-The latest stable version is **2.2.1**.
+The latest stable version is **2.2.2**.
 
 ### Current ESPressio dependencies
 
 - **ESPressio Units >= 0.2.1 < 1.0.0**
-- **ESPressio Observable >= 3.0.0 < 4.0.0**
+- **ESPressio Observable >= 3.0.1 < 4.0.0**
 
-Version 2.2.1 is a dependency-maintenance release. It retains the Timing 2.2.0 public API and behaviour while updating the active ESPressio dependency baselines and bounding them to their current major release lines.
+Version 2.2.2 is a dependency-maintenance release. It retains the Timing 2.2.1 public API and behaviour while updating the active ESPressio dependency baselines to the latest validated patch releases within their current major release lines.
 
 ## Version 2.2.0
 
@@ -737,7 +737,7 @@ instead of naming `DefaultClockTime`.
 
 ```ini
 lib_deps =
-    flowduino/ESPressio-Timing@^2.2.1
+    flowduino/ESPressio-Timing@^2.2.2
 ```
 
 A project selecting Serializable Units additionally declares the appropriate ESPressio Units version and ESPressio Serializable dependency.
