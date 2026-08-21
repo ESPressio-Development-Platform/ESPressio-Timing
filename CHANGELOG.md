@@ -7,7 +7,7 @@
 - Preserved the ESPressio Observable baseline at `>=3.0.1 <4.0.0`.
 - Preserved Timing's architecture in which Serializable time representations are supplied through opt-in Serializable Unit types rather than a direct Timing -> Serializable dependency.
 - Updated package metadata, README and current dependency documentation for Timing 2.2.4.
-- Updated release-candidate validation to exercise the Units 0.2.3 candidate until the corresponding release tag is available.
+- Updated validation to exercise the released Units 0.2.3 dependency.
 
 ### Compatibility
 - No Timing public API or runtime behaviour changes are introduced by this dependency-maintenance release.
@@ -114,7 +114,7 @@ Major architectural release.
 
 ### New architecture
 
-- `SystemClock<TTime>` is now a typed facade over one shared `SystemClockCore<TLockPolicy, TTick>` singleton, so different time representations observe the same global timeline.
+- `SystemClock<TTime>` is a typed facade over one shared `SystemClockCore<TLockPolicy, TTick>` singleton, so different time representations observe the same global timeline.
 
 - Added `TimeTraits<TTime>` customization point.
 - Added configurable raw `TTick` storage/arithmetic type.
