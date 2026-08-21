@@ -6,14 +6,14 @@ High-resolution system, stopwatch, and RTC clock abstractions with a generic pub
 
 ## Latest Stable Version
 
-The current version is **2.2.3**.
+The current version is **2.2.4**.
 
 ### Current ESPressio dependencies
 
-- **ESPressio Units >= 0.2.2 < 1.0.0**
+- **ESPressio Units >= 0.2.3 < 1.0.0**
 - **ESPressio Observable >= 3.0.1 < 4.0.0**
 
-Version 2.2.3 is a dependency-maintenance release. It retains the Timing 2.2.x public API and behaviour while updating the required ESPressio Units baseline to 0.2.2, which in turn carries the optional Serializable 0.10.1 integration. Timing itself remains independent of ESPressio Serializable.
+Version 2.2.4 is a dependency-maintenance release. It retains the Timing 2.2.x public API and behaviour while updating the required ESPressio Units baseline to 0.2.3, which in turn carries the optional Serializable 0.10.2 integration. Timing itself remains independent of ESPressio Serializable.
 
 ## Version 2.2.0
 
