@@ -1,5 +1,17 @@
 # Changelog
 
+## 2.2.4 — 2026-08-21
+
+### Changed
+- Raised the required ESPressio Units baseline from 0.2.2 to 0.2.3 following the Serializable 0.10.2 dependency refresh.
+- Preserved the ESPressio Observable baseline at `>=3.0.1 <4.0.0`.
+- Preserved Timing's architecture in which Serializable time representations are supplied through opt-in Serializable Unit types rather than a direct Timing -> Serializable dependency.
+- Updated package metadata, README and current dependency documentation for Timing 2.2.4.
+- Updated release-candidate validation to exercise the Units 0.2.3 candidate until the corresponding release tag is available.
+
+### Compatibility
+- No Timing public API or runtime behaviour changes are introduced by this dependency-maintenance release.
+
 ## 2.2.3 — 2026-08-20
 
 ### Changed
