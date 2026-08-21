@@ -16,14 +16,14 @@
         "type": "git",
         "url": "https://github.com/Flowduino/ESPressio-Timing.git"
     },
-    "version": "2.2.3",
+    "version": "2.2.4",
     "license": "Apache-2.0",
     "frameworks": "arduino",
     "platforms": "*",
     "dependencies": [
         {
             "name": "Flowduino ESPressio-Units",
-            "version": ">=0.2.2 <1.0.0",
+            "version": ">=0.2.3 <1.0.0",
             "url": "https://github.com/Flowduino/ESPressio-Units.git",
             "platforms": "*"
         },
