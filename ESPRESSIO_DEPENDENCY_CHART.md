@@ -28,22 +28,26 @@ of the Timing core.
 ## Current coordinated ecosystem
 
 ```text
-Observable 3.0.1
-Serializable 0.10.2
-Units 0.2.3 (candidate until released)
-    |
-    v
-Timing 2.2.4
-    |
-    +--> Threads 3.1.4 (planned downstream refresh)
-    |
-    +--> ESP-Now 0.5.2 (planned downstream refresh)
+FOUNDATIONAL
+├── Observable 3.0.1
+├── Serializable 0.10.2
+├── Units 0.2.3
+├── Security 0.2.0
+└── Command 0.3.0
 
-Event 5.8.2 is the planned downstream convergence release after Threads and
-ESP-Now are refreshed.
+RUNTIME
+└── Timing 2.2.4
 
-Serial 0.5.1 remains the final downstream diagnostics/operator release
-candidate.
+EXECUTION
+└── Threads 3.1.4
+
+TRANSPORT / INTEGRATION
+├── Sockets 0.5.0
+├── ESP-Now 0.5.2
+└── Event 5.8.2
+
+DIAGNOSTICS / OPERATOR
+└── Serial 0.5.1
 ```
 
 Security 0.2.0, Command 0.3.0 and Sockets 0.5.0 remain separate branches of
