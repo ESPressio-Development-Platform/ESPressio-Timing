@@ -3,7 +3,7 @@ name: Dependency Refresh Tests
 on:
   push:
     branches:
-      - feature/7-units-0.2.3-dependency-refresh
+      - main
   pull_request:
     branches:
       - main
