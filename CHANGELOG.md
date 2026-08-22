@@ -1,5 +1,17 @@
 # Changelog
 
+## 2.2.5 — 2026-08-22
+
+### Changed
+- Published the post-migration ESPressio Timing package generation from the dedicated `ESPressio-Development-Platform` GitHub organization.
+- Raised the required ESPressio Units baseline from 0.2.3 to the migrated 0.2.4 release.
+- Raised the required ESPressio Observable baseline from 3.0.1 to the migrated 3.0.2 release.
+- Updated package metadata, README installation/dependency guidance, CI validation, and current dependency documentation for Timing 2.2.5.
+- Preserved Timing's architecture in which Serializable time representations are supplied through opt-in Serializable Unit types rather than a direct Timing -> Serializable dependency.
+
+### Compatibility
+- No Timing public API or runtime behaviour changes are introduced by this repository-relocation patch release.
+
 ## 2.2.4 — 2026-08-21
 
 ### Changed
