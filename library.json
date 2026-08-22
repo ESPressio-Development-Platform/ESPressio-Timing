@@ -17,20 +17,20 @@
         "type": "git",
         "url": "https://github.com/ESPressio-Development-Platform/ESPressio-Timing.git"
     },
-    "version": "2.2.4",
+    "version": "2.2.5",
     "license": "Apache-2.0",
     "frameworks": "arduino",
     "platforms": "*",
     "dependencies": [
         {
             "name": "ESPressio-Units",
-            "version": ">=0.2.3 <1.0.0",
+            "version": ">=0.2.4 <1.0.0",
             "url": "https://github.com/ESPressio-Development-Platform/ESPressio-Units.git",
             "platforms": "*"
         },
         {
             "name": "ESPressio-Observable",
-            "version": ">=3.0.1 <4.0.0",
+            "version": ">=3.0.2 <4.0.0",
             "url": "https://github.com/ESPressio-Development-Platform/ESPressio-Observable.git",
             "platforms": "*"
         }
