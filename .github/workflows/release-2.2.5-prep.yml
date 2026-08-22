@@ -64,11 +64,11 @@ jobs:
           PY
       - name: Validate release documentation
         run: |
-          grep -q 'current version is **2.2.5**' README.md
-          grep -q 'ESPressio Units >= 0.2.4 < 1.0.0' README.md
-          grep -q 'ESPressio Observable >= 3.0.2 < 4.0.0' README.md
+          grep -Fq 'The current version is **2.2.5**.' README.md
+          grep -Fq 'ESPressio Units >= 0.2.4 < 1.0.0' README.md
+          grep -Fq 'ESPressio Observable >= 3.0.2 < 4.0.0' README.md
           grep -q '^## 2.2.5' CHANGELOG.md
-          grep -q 'Timing        2.2.5' ESPRESSIO_DEPENDENCY_CHART.md
+          grep -Fq 'Timing        2.2.5' ESPRESSIO_DEPENDENCY_CHART.md
       - name: Commit release documentation
         run: |
           git config user.name 'github-actions[bot]'
