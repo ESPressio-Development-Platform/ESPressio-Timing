@@ -1,6 +1,6 @@
 # ESPressio Timing
 
-Timing Components of the Flowduino ESPressio Development Platform.
+Timing Components of the ESPressio Development Platform.
 
 High-resolution system, stopwatch, and RTC clock abstractions with a generic public time representation.
 
@@ -737,7 +737,7 @@ instead of naming `DefaultClockTime`.
 
 ```ini
 lib_deps =
-    flowduino/ESPressio-Timing@^2.2.2
+    espressio-development-platform/ESPressio-Timing@^2.2.4
 ```
 
 A project selecting Serializable Units additionally declares the appropriate ESPressio Units version and ESPressio Serializable dependency.

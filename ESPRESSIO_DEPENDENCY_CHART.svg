@@ -18,10 +18,10 @@
   <path class="edge" d="M555 355 L640 283"/><path class="edge" d="M520 355 L420 283"/><path class="edge" d="M495 355 L175 153"/><path class="edge optional" d="M520 355 L340 153"/><path class="edge optional" d="M690 125 L650 355"/><path class="edge optional" d="M890 153 L665 355"/>
   <text class="section" x="35" y="480">Transport / integration</text>
   <rect class="node" x="250" y="505" width="210" height="72" rx="8"/><text class="label" x="355" y="535">Sockets 0.7.0</text><text class="small" x="355" y="555">required: Observable</text>
-  <rect class="node" x="720" y="505" width="210" height="72" rx="8"/><text class="label" x="825" y="535">ESP-Now 0.7.0</text><text class="small" x="825" y="555">required: Timing, Observable</text>
+  <rect class="node" x="720" y="505" width="210" height="72" rx="8"/><text class="label" x="825" y="535">ESP-Now 0.8.0</text><text class="small" x="825" y="555">required: Timing, Observable</text>
   <path class="edge" d="M300 505 L150 153"/><path class="edge optional" d="M395 505 L520 423"/><path class="edge optional" d="M340 505 L690 153"/><path class="edge optional" d="M370 505 L870 153"/><path class="edge optional" d="M315 505 L390 283"/><path class="edge" d="M790 505 L430 283"/><path class="edge" d="M760 505 L190 153"/><path class="edge optional" d="M795 505 L660 423"/><path class="edge optional" d="M845 505 L730 153"/><path class="edge optional" d="M875 505 L920 153"/>
   <text class="section" x="35" y="640">Diagnostics / operator</text>
-  <rect class="node" x="430" y="665" width="340" height="92" rx="8"/><text class="label" x="600" y="695">Serial 0.7.1</text><text class="small" x="600" y="718">core: no ESPressio dependencies</text><text class="small" x="600" y="738">all subsystem integrations are opt-in</text>
+  <rect class="node" x="430" y="665" width="340" height="92" rx="8"/><text class="label" x="600" y="695">Serial 0.7.2</text><text class="small" x="600" y="718">core: no ESPressio dependencies</text><text class="small" x="600" y="738">all subsystem integrations are opt-in</text>
   <path class="edge optional" d="M500 665 L375 577"/><path class="edge optional" d="M700 665 L805 577"/><path class="edge optional" d="M600 665 L600 423"/>
   <text class="note" x="35" y="810">Solid arrows: required dependencies. Dashed arrows: opt-in integrations. See ESPRESSIO_DEPENDENCY_CHART.md for the exhaustive edge list.</text>
   <text class="note" x="35" y="836">Event has no reverse dependency on Command, Security, Sockets, or ESP-Now. Concrete domain Event integrations are owned downstream.</text>
