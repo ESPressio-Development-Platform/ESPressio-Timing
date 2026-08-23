@@ -3,30 +3,30 @@
     text{font-family:Arial,sans-serif;fill:#111}.title{font-size:28px;font-weight:700}.section{font-size:16px;font-weight:700}.node{fill:#fff;stroke:#222;stroke-width:2}.label{font-size:15px;font-weight:600;text-anchor:middle}.small{font-size:12px;text-anchor:middle}.note{font-size:13px}.edge{stroke:#333;stroke-width:2;fill:none;marker-end:url(#arrow)}.optional{stroke-dasharray:7 6}
   </style>
   <defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#333"/></marker></defs>
-  <text class="title" x="35" y="42">ESPressio Dependency Architecture — Serializable 0.11.2 Cascade</text>
+  <text class="title" x="35" y="42">ESPressio Dependency Architecture — Serializable 0.11.3 Cascade</text>
   <text class="section" x="35" y="78">Active upstream chain</text>
-  <rect class="node" x="45" y="100" width="190" height="58" rx="8"/><text class="label" x="140" y="133">Serializable 0.11.2</text>
-  <rect class="node" x="295" y="100" width="170" height="58" rx="8"/><text class="label" x="380" y="133">Units 0.2.6</text>
-  <rect class="node" x="525" y="100" width="180" height="58" rx="8"/><text class="label" x="615" y="133">Timing 2.2.7</text>
-  <rect class="node" x="765" y="100" width="190" height="58" rx="8"/><text class="label" x="860" y="133">Threads 3.1.6 next</text>
+  <rect class="node" x="45" y="100" width="190" height="58" rx="8"/><text class="label" x="140" y="133">Serializable 0.11.3</text>
+  <rect class="node" x="295" y="100" width="170" height="58" rx="8"/><text class="label" x="380" y="133">Units 0.2.7</text>
+  <rect class="node" x="525" y="100" width="180" height="58" rx="8"/><text class="label" x="615" y="133">Timing 2.2.8</text>
+  <rect class="node" x="765" y="100" width="190" height="58" rx="8"/><text class="label" x="860" y="133">Threads 3.1.7 next</text>
   <path class="edge optional" d="M295 129 L235 129"/>
   <path class="edge" d="M525 129 L465 129"/>
   <path class="edge" d="M765 129 L705 129"/>
 
-  <text class="section" x="35" y="215">Next propagation layers</text>
-  <rect class="node" x="490" y="240" width="220" height="60" rx="8"/><text class="label" x="600" y="274">Event 6.0.2</text>
+  <text class="section" x="35" y="215">Downstream propagation layers</text>
+  <rect class="node" x="490" y="240" width="220" height="60" rx="8"/><text class="label" x="600" y="274">Event 6.0.2+</text>
   <path class="edge" d="M600 240 L840 158"/>
-  <rect class="node" x="250" y="360" width="200" height="60" rx="8"/><text class="label" x="350" y="394">Command 1.0.2</text>
-  <rect class="node" x="750" y="360" width="200" height="60" rx="8"/><text class="label" x="850" y="394">Security 0.4.1</text>
+  <rect class="node" x="250" y="360" width="200" height="60" rx="8"/><text class="label" x="350" y="394">Command 1.0.2+</text>
+  <rect class="node" x="750" y="360" width="200" height="60" rx="8"/><text class="label" x="850" y="394">Security 0.4.1+</text>
   <path class="edge optional" d="M390 360 L540 300"/><path class="edge optional" d="M810 360 L660 300"/>
 
-  <rect class="node" x="120" y="500" width="210" height="60" rx="8"/><text class="label" x="225" y="534">Persistence 0.3.1</text>
-  <rect class="node" x="495" y="500" width="210" height="60" rx="8"/><text class="label" x="600" y="534">Sockets 0.7.2</text>
-  <rect class="node" x="870" y="500" width="210" height="60" rx="8"/><text class="label" x="975" y="534">ESP-Now 0.8.2</text>
+  <rect class="node" x="120" y="500" width="210" height="60" rx="8"/><text class="label" x="225" y="534">Persistence 0.3.1+</text>
+  <rect class="node" x="495" y="500" width="210" height="60" rx="8"/><text class="label" x="600" y="534">Sockets 0.7.2+</text>
+  <rect class="node" x="870" y="500" width="210" height="60" rx="8"/><text class="label" x="975" y="534">ESP-Now 0.8.2+</text>
   <path class="edge optional" d="M260 500 L805 420"/><path class="edge optional" d="M560 500 L400 420"/><path class="edge optional" d="M640 500 L800 420"/><path class="edge optional" d="M935 500 L410 420"/><path class="edge optional" d="M1000 500 L865 420"/>
 
   <rect class="node" x="360" y="625" width="210" height="60" rx="8"/><text class="label" x="465" y="659">WiFi 0.2.0</text>
-  <rect class="node" x="690" y="625" width="210" height="60" rx="8"/><text class="label" x="795" y="659">Serial 0.8.1</text>
+  <rect class="node" x="690" y="625" width="210" height="60" rx="8"/><text class="label" x="795" y="659">Serial terminal</text>
   <path class="edge optional" d="M430 625 L250 560"/><path class="edge optional" d="M500 625 L840 420"/>
   <path class="edge optional" d="M735 625 L630 560"/><path class="edge optional" d="M815 625 L975 560"/><path class="edge optional" d="M770 625 L520 300"/>
 

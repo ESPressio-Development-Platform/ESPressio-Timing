@@ -1,4 +1,4 @@
-# ESPressio Dependency Chart — Serializable 0.11.2 Cascade
+# ESPressio Dependency Chart — Serializable 0.11.3 Cascade
 
 ![ESPressio Library Dependency Chart](ESPRESSIO_DEPENDENCY_CHART.svg)
 
@@ -8,18 +8,18 @@ Arrows point from a consuming library to the library it consumes. **Required** d
 
 ```text
 Observable    3.0.2
-Serializable  0.11.2
-Units         0.2.6
-Timing        2.2.7   (this release)
-Threads       3.1.5   -> next: 3.1.6
-Event         6.0.1   -> planned: 6.0.2
-Command       1.0.1   -> planned: 1.0.2
-Security      0.4.0   -> planned: 0.4.1
-Persistence   0.3.0   -> planned: 0.3.1
-Sockets       0.7.1   -> planned: 0.7.2
-ESP-Now       0.8.1   -> planned: 0.8.2
-WiFi          0.1.0   -> unreleased 0.2.0 work in progress
-Serial        0.8.0   -> planned: 0.8.1
+Serializable  0.11.3
+Units         0.2.7
+Timing        2.2.8   (this release)
+Threads       3.1.6   -> next: 3.1.7
+Event         6.0.2
+Command       1.0.2
+Security      0.4.1
+Persistence   0.3.1
+Sockets       0.7.2
+ESP-Now       0.8.2
+WiFi          0.2.0   -> merged, awaiting released-dependency verification
+Serial        0.8.0   -> terminal cascade target
 ```
 
 ## Required dependencies
@@ -28,41 +28,42 @@ Serial        0.8.0   -> planned: 0.8.1
 Observable 3.0.2
     -> none
 
-Serializable 0.11.2
+Serializable 0.11.3
     -> none
 
-Units 0.2.6
+Units 0.2.7
     -> none
 
-Timing 2.2.7
-    -> Units >= 0.2.6 < 1.0.0
+Timing 2.2.8
+    -> Units >= 0.2.7 < 1.0.0
     -> Observable >= 3.0.2 < 4.0.0
 
-Threads 3.1.5
-    -> Timing >= 2.2.5 < 3.0.0
+Threads 3.1.6
+    -> Timing >= 2.2.7 < 3.0.0
     -> Observable >= 3.0.2 < 4.0.0
 
-Event 6.0.1
-    -> Threads >= 3.1.5 < 4.0.0
-    -> Timing >= 2.2.5 < 3.0.0
+Event 6.0.2
+    -> Threads >= 3.1.6 < 4.0.0
+    -> Timing >= 2.2.7 < 3.0.0
     -> Observable >= 3.0.2 < 4.0.0
 
-Command 1.0.1
+Command 1.0.2
     -> Observable >= 3.0.2 < 4.0.0
 
-Security 0.4.0
+Security 0.4.1
     -> Observable >= 3.0.2 < 4.0.0
 
-Sockets 0.7.1
+Sockets 0.7.2
     -> Observable >= 3.0.2 < 4.0.0
 
-ESP-Now 0.8.1
-    -> Timing >= 2.2.5 < 3.0.0
+ESP-Now 0.8.2
+    -> Timing >= 2.2.7 < 3.0.0
     -> Observable >= 3.0.2 < 4.0.0
 
-WiFi 0.1.0
+WiFi 0.2.0
     -> Observable >= 3.0.2 < 4.0.0
-    -> Serializable >= 0.11.0 < 1.0.0
+    -> Serializable >= 0.11.2 < 1.0.0
+    -> Threads >= 3.1.6 < 4.0.0
 
 Serial 0.8.0
     -> none in the core package
@@ -72,7 +73,7 @@ Serial 0.8.0
 
 ```text
 Units
-    - - -> Serializable >= 0.11.2 < 1.0.0
+    - - -> Serializable >= 0.11.3 < 1.0.0
             Serializable Unit variants
 
 Threads
@@ -80,62 +81,62 @@ Threads
             Serializable PrecisionThread time/frequency traits
 
 Event
-    - - -> Serializable >= 0.10.3 < 1.0.0
+    - - -> Serializable
             Serializable Events / Event Transport
 
 Command
-    - - -> Event >= 6.0.1 < 7.0.0
+    - - -> Event
 
 Security
-    - - -> Event >= 6.0.1 < 7.0.0
+    - - -> Event
 
 Persistence
-    - - -> Serializable >= 0.11.0 < 1.0.0
-    - - -> Security >= 0.4.0 < 1.0.0
+    - - -> Serializable
+    - - -> Security
 
 Sockets
-    - - -> Event >= 6.0.1 < 7.0.0
-    - - -> Command >= 1.0.1 < 2.0.0
-    - - -> Security >= 0.3.1 < 1.0.0
-    - - -> Timing >= 2.2.5 < 3.0.0
+    - - -> Event
+    - - -> Command
+    - - -> Security
+    - - -> Timing
 
 ESP-Now
-    - - -> Event >= 6.0.1 < 7.0.0
-    - - -> Command >= 1.0.1 < 2.0.0
-    - - -> Security >= 0.3.1 < 1.0.0
+    - - -> Event
+    - - -> Command
+    - - -> Security
 
-WiFi 0.2.0 work
+WiFi
     - - -> Event
     - - -> Command
     - - -> Persistence
     - - -> Security
 
 Serial
-    - - -> Serializable >= 0.11.0 < 1.0.0
-    - - -> Timing >= 2.2.5 < 3.0.0
-    - - -> Threads >= 3.1.5 < 4.0.0
-    - - -> Event >= 6.0.1 < 7.0.0
-    - - -> Command >= 1.0.1 < 2.0.0
-    - - -> Security >= 0.4.0 < 1.0.0
-    - - -> Sockets >= 0.7.1 < 1.0.0
-    - - -> ESP-Now >= 0.8.1 < 1.0.0
-    - - -> WiFi >= 0.1.0 < 1.0.0
+    - - -> Serializable
+    - - -> Timing
+    - - -> Threads
+    - - -> Event
+    - - -> Command
+    - - -> Security
+    - - -> Sockets
+    - - -> ESP-Now
+    - - -> WiFi
 ```
 
-Timing deliberately has **no direct Serializable edge**. A Serializable Timing public representation is obtained by selecting a Serializable Unit type as `TTime`; Timing 2.2.7 CI validates that path against Units 0.2.6 and Serializable 0.11.2.
+Timing deliberately has **no direct Serializable edge**. A Serializable Timing public representation is obtained by selecting a Serializable Unit type as `TTime`; Timing 2.2.8 CI validates that path against Units 0.2.7 and Serializable 0.11.3.
 
 ## Active propagation order
 
 ```text
-Serializable 0.11.2
-    -> Units 0.2.6
-    -> Timing 2.2.7
-    -> Threads 3.1.6
-    -> Event 6.0.2
-    -> Command 1.0.2 / Security 0.4.1
-    -> Persistence 0.3.1 / Sockets 0.7.2 / ESP-Now 0.8.2
+Serializable 0.11.3
+    -> Units 0.2.7
+    -> Timing 2.2.8
+    -> Threads 3.1.7
+    -> Event
+    -> Command / Security
+    -> Persistence / Sockets / ESP-Now
     -> WiFi 0.2.0
-    -> Serial 0.8.1
+    -> Serial
 ```
 
 Serial remains terminal/downstream. Tree remains standalone.
