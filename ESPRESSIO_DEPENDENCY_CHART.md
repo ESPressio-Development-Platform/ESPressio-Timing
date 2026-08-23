@@ -1,4 +1,4 @@
-# ESPressio Dependency Chart — Serializable 0.11.1 Cascade
+# ESPressio Dependency Chart — Serializable 0.11.2 Cascade
 
 ![ESPressio Library Dependency Chart](ESPRESSIO_DEPENDENCY_CHART.svg)
 
@@ -28,14 +28,14 @@ Serial        0.8.0   -> planned: 0.8.1
 Observable 3.0.2
     -> none
 
-Serializable 0.11.1
+Serializable 0.11.2
     -> none
 
-Units 0.2.5
+Units 0.2.6
     -> none
 
-Timing 2.2.6
-    -> Units >= 0.2.5 < 1.0.0
+Timing 2.2.7
+    -> Units >= 0.2.6 < 1.0.0
     -> Observable >= 3.0.2 < 4.0.0
 
 Threads 3.1.5
@@ -72,7 +72,7 @@ Serial 0.8.0
 
 ```text
 Units
-    - - -> Serializable >= 0.11.1 < 1.0.0
+    - - -> Serializable >= 0.11.2 < 1.0.0
             Serializable Unit variants
 
 Threads
@@ -122,14 +122,14 @@ Serial
     - - -> WiFi >= 0.1.0 < 1.0.0
 ```
 
-Timing deliberately has **no direct Serializable edge**. A Serializable Timing public representation is obtained by selecting a Serializable Unit type as `TTime`; Timing 2.2.6 CI validates that path against Units 0.2.5 and Serializable 0.11.1.
+Timing deliberately has **no direct Serializable edge**. A Serializable Timing public representation is obtained by selecting a Serializable Unit type as `TTime`; Timing 2.2.7 CI validates that path against Units 0.2.6 and Serializable 0.11.2.
 
 ## Active propagation order
 
 ```text
-Serializable 0.11.1
-    -> Units 0.2.5
-    -> Timing 2.2.6
+Serializable 0.11.2
+    -> Units 0.2.6
+    -> Timing 2.2.7
     -> Threads 3.1.6
     -> Event 6.0.2
     -> Command 1.0.2 / Security 0.4.1

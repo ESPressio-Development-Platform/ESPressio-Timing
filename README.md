@@ -6,14 +6,14 @@ High-resolution system, stopwatch, and RTC clock abstractions with a generic pub
 
 ## Latest Stable Version
 
-The current version is **2.2.6**.
+The current version is **2.2.7**.
 
 ### Current ESPressio dependencies
 
-- **ESPressio Units >= 0.2.5 < 1.0.0**
+- **ESPressio Units >= 0.2.6 < 1.0.0**
 - **ESPressio Observable >= 3.0.2 < 4.0.0**
 
-Version 2.2.6 advances Timing to the released Units 0.2.5 baseline as part of the Serializable 0.11.1 dependency cascade. Timing itself remains independent of ESPressio Serializable; applications selecting Serializable Unit time types consume Serializable through Units, and CI validates that path against Serializable 0.11.1.
+Version 2.2.7 advances Timing to the released Units 0.2.6 baseline as part of the corrected Serializable 0.11.2 dependency cascade. Timing itself remains independent of ESPressio Serializable; applications selecting Serializable Unit time types consume Serializable through Units, and CI validates that path against Serializable 0.11.2.
 
 ## Version 2.2.0
 
@@ -737,7 +737,7 @@ instead of naming `DefaultClockTime`.
 
 ```ini
 lib_deps =
-    espressio-development-platform/ESPressio-Timing@^2.2.6
+    espressio-development-platform/ESPressio-Timing@^2.2.7
 ```
 
 A project selecting Serializable Units additionally declares ESPressio Units `^0.2.5` and ESPressio Serializable `^0.11.1`. Timing does not acquire a direct Serializable dependency.
