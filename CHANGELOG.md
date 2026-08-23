@@ -1,5 +1,19 @@
 # Changelog
 
+## 2.2.6 — 2026-08-23
+
+### Changed
+- Raised the required ESPressio Units baseline from 0.2.4 to 0.2.5 as the next step in the Serializable 0.11.1 dependency cascade.
+- Preserved the required ESPressio Observable baseline at `>=3.0.2 <4.0.0`.
+- Updated package metadata and release validation for Timing 2.2.6.
+- Added a dedicated ESP32 consumer compile using `SerializableNanoSeconds<uint64_t>` as the public `TTime` representation, validated through Units 0.2.5 and Serializable 0.11.1.
+- Preserved Timing's architecture in which Serializable time representations are supplied through opt-in Serializable Unit types rather than a direct Timing -> Serializable dependency.
+- Updated README and current dependency documentation for the coordinated downstream release cascade.
+
+### Compatibility
+- No Timing public API, clock discipline, synchronization, observer, scheduling, or runtime behaviour changes are introduced by this dependency-maintenance release.
+- Ordinary Timing consumers still do not require ESPressio Serializable.
+
 ## 2.2.5 — 2026-08-22
 
 ### Changed
