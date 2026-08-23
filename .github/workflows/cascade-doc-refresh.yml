@@ -1,0 +1,63 @@
+name: Cascade Documentation Refresh
+
+on:
+  push:
+    branches:
+      - chore/24-units-0.2.6-cascade
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: chore/24-units-0.2.6-cascade
+      - name: Refresh release references without replacing documentation
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          replacements = {
+              'README.md': [
+                  ('The current version is **2.2.6**.', 'The current version is **2.2.7**.'),
+                  ('**ESPressio Units >= 0.2.5 < 1.0.0**', '**ESPressio Units >= 0.2.6 < 1.0.0**'),
+                  ('Version 2.2.6 advances Timing to the released Units 0.2.5 baseline as part of the Serializable 0.11.1 dependency cascade. Timing itself remains independent of ESPressio Serializable; applications selecting Serializable Unit time types consume Serializable through Units, and CI validates that path against Serializable 0.11.1.',
+                   'Version 2.2.7 advances Timing to the released Units 0.2.6 baseline as part of the corrected Serializable 0.11.2 dependency cascade. Timing itself remains independent of ESPressio Serializable; applications selecting Serializable Unit time types consume Serializable through Units, and CI validates that path against Serializable 0.11.2.'),
+                  ('espressio-development-platform/ESPressio-Timing@^2.2.6', 'espressio-development-platform/ESPressio-Timing@^2.2.7'),
+              ],
+              'ESPRESSIO_DEPENDENCY_CHART.md': [
+                  ('Timing 2.2.6', 'Timing 2.2.7'),
+                  ('Units 0.2.5', 'Units 0.2.6'),
+                  ('Serializable 0.11.1', 'Serializable 0.11.2'),
+                  ('>= 0.2.5 < 1.0.0', '>= 0.2.6 < 1.0.0'),
+                  ('>= 0.11.1 < 1.0.0', '>= 0.11.2 < 1.0.0'),
+                  ('Active Serializable 0.11.1 cascade', 'Active Serializable 0.11.2 cascade'),
+              ],
+              'ESPRESSIO_DEPENDENCY_CHART.svg': [
+                  ('Timing 2.2.6', 'Timing 2.2.7'),
+                  ('Units 0.2.5', 'Units 0.2.6'),
+                  ('Serializable 0.11.1', 'Serializable 0.11.2'),
+                  ('0.11.1 Cascade', '0.11.2 Cascade'),
+              ],
+          }
+
+          for filename, pairs in replacements.items():
+              path = Path(filename)
+              text = path.read_text()
+              original = text
+              for old, new in pairs:
+                  text = text.replace(old, new)
+              if text != original:
+                  path.write_text(text)
+          PY
+          git rm .github/workflows/cascade-doc-refresh.yml
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add README.md ESPRESSIO_DEPENDENCY_CHART.md ESPRESSIO_DEPENDENCY_CHART.svg
+          git commit -m "#24 update README and dependency charts for 2.2.7"
+          git push
