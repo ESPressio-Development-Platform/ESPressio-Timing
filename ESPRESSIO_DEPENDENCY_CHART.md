@@ -8,9 +8,9 @@ Arrows point from a consuming library to the library it consumes. **Required** d
 
 ```text
 Observable    3.0.2
-Serializable  0.11.1
-Units         0.2.5
-Timing        2.2.6   (this release)
+Serializable  0.11.2
+Units         0.2.6
+Timing        2.2.7   (this release)
 Threads       3.1.5   -> next: 3.1.6
 Event         6.0.1   -> planned: 6.0.2
 Command       1.0.1   -> planned: 1.0.2
