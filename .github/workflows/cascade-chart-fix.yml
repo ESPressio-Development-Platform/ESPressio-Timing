@@ -1,0 +1,40 @@
+name: Cascade Chart Correction
+
+on:
+  push:
+    branches:
+      - chore/24-units-0.2.6-cascade
+
+permissions:
+  contents: write
+
+jobs:
+  correct:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: chore/24-units-0.2.6-cascade
+      - name: Correct current-generation values
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          for filename in ('ESPRESSIO_DEPENDENCY_CHART.md', 'ESPRESSIO_DEPENDENCY_CHART.svg'):
+              p = Path(filename)
+              s = p.read_text()
+              s = s.replace('Serializable  0.11.1', 'Serializable  0.11.2')
+              s = s.replace('Units         0.2.5', 'Units         0.2.6')
+              s = s.replace('Timing        2.2.6   (this release)', 'Timing        2.2.7   (this release)')
+              s = s.replace('Serializable 0.11.1', 'Serializable 0.11.2')
+              s = s.replace('Units 0.2.5', 'Units 0.2.6')
+              s = s.replace('Timing 2.2.6', 'Timing 2.2.7')
+              p.write_text(s)
+          PY
+          git rm .github/workflows/cascade-chart-fix.yml
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add ESPRESSIO_DEPENDENCY_CHART.md ESPRESSIO_DEPENDENCY_CHART.svg
+          git commit -m "#24 correct dependency chart generation values"
+          git push
