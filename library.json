@@ -9,9 +9,7 @@
         "url": "https://espressio.org"
     },
     "build": {
-        "flags": [
-            "-DESPRESSIO_TIMING"
-        ]
+        "flags": ["-std=gnu++17", "-DESPRESSIO_TIMING"]
     },
     "repository": {
         "type": "git",
@@ -19,9 +17,14 @@
     },
     "version": "2.2.8",
     "license": "Apache-2.0",
-    "frameworks": "arduino",
+    "frameworks": "*",
     "platforms": "*",
     "dependencies": [
+        {
+            "name": "ESPressio-System",
+            "version": "https://github.com/ESPressio-Development-Platform/ESPressio-System.git#feature/1-system-memory-policy",
+            "platforms": "*"
+        },
         {
             "name": "ESPressio-Units",
             "version": "https://github.com/ESPressio-Development-Platform/ESPressio-Units.git#main",
