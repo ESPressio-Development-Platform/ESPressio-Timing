@@ -15,7 +15,8 @@ This file records changes made during the platform-abstraction tranche tracked b
 - Migrated platform-clock includes to the collision-free `ESPressio_SystemPlatformClock.hpp` header.
 - Added `ESPressio_TimingSystemClock.hpp` as the canonical unambiguous include for the disciplined `ESPressio::Timing::SystemClock` API. Cross-library code that needs Timing's system timeline should use this header rather than relying on which package wins resolution of the historical `ESPressio_SystemClock.hpp` filename.
 - Retained the historical Timing `ESPressio_SystemClock.hpp` for source compatibility. ESPressio-System's compatibility header now exposes its platform clock contract and, when Timing is present, forwards to `ESPressio_TimingSystemClock.hpp` so legacy include ordering does not silently hide one API.
-- Enabled CI on feature/optimisation/bugfix branches and added explicit System dependency coverage. The new canonical Timing SystemClock include is compiled by both the ordinary ESP32 and Serializable-time integration jobs; the first `feature/29-platform-clock-abstractions` run completed successfully.
+- Updated README architecture guidance to describe System/provider ownership, ESPressio-ESP32 target implementation, canonical Timing/System clock headers, and the compatibility status of `GPTimerTimeSource` without presenting the working branch as an already-published release.
+- Enabled CI on feature/optimisation/bugfix branches and added explicit System dependency coverage. Host, ordinary ESP32, and Serializable-time integration validation have completed successfully on the platform-abstraction branch.
 
 ## Boundary
 
