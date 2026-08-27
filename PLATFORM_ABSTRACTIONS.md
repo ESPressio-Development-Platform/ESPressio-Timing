@@ -12,6 +12,7 @@ This file records changes made during the platform-abstraction tranche tracked b
 - Removed direct `esp_timer_get_time()`, Arduino `micros()` and host `std::chrono` selection logic from Timing's reusable source implementation. Platform selection is now performed by System/provider installation.
 - Retained `GetIsUsingGPTimer()` as a compatibility name, backed by the generic high-resolution-counter state; new code should use `GetIsUsingHighResolutionCounter()`.
 - Added ESPressio-System as a direct dependency and removed Arduino-only package metadata.
+- Migrated System-clock includes to the canonical `ESPressio_SystemClock.hpp` header. This avoids the historical package-level collision with Timing's own `ESPressio_Clock.hpp` when System and Timing appear in the same PlatformIO dependency graph.
 
 ## Boundary
 
