@@ -3,7 +3,7 @@
 #include <cstdint>
 #include <limits>
 
-#include <ESPressio_SystemClock.hpp>
+#include <ESPressio_SystemPlatformClock.hpp>
 
 #include "ESPressio_ClockTypes.hpp"
 #include "ESPressio_ITimeSource.hpp"
