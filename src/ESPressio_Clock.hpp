@@ -13,6 +13,9 @@ namespace ESPressio {
 
     namespace Timing {
 
+        /// <summary>Base implementation for clocks backed by a raw platform-neutral time source.</summary>
+        /// <typeparam name="TTime">Public unit-aware time representation.</typeparam>
+        /// <typeparam name="TTick">Raw nanosecond tick representation used internally.</typeparam>
         template<
             typename TTime = DefaultClockTime,
             typename TTick = ClockTick
@@ -23,6 +26,7 @@ namespace ESPressio {
             protected:
                 ITimeSource* _timeSource;
 
+                /// <summary>Creates a clock over the supplied time source, falling back to the high-resolution source when null.</summary>
                 explicit ClockBase(
                     ITimeSource* timeSource =
                         HighResolutionTimeSource::
@@ -98,6 +102,7 @@ namespace ESPressio {
                 using TickType = TTick;
 
 
+                /// <inheritdoc/>
                 TTime GetResolution() const override {
                     const TTick resolution =
                         static_cast<TTick>(
@@ -115,6 +120,7 @@ namespace ESPressio {
                 }
 
 
+                /// <summary>Returns the raw time source backing this clock.</summary>
                 ITimeSource*
                 GetTimeSource() const {
                     return _timeSource;
@@ -122,6 +128,8 @@ namespace ESPressio {
         };
 
 
+        /// <summary>Settable clock base that combines a raw monotonic time source with a configurable public time origin.</summary>
+        /// <typeparam name="TLockPolicy">Lock policy used to protect mutable clock origin state.</typeparam>
         template<
             typename TTime = DefaultClockTime,
             typename TLockPolicy =
@@ -152,6 +160,7 @@ namespace ESPressio {
                 TTick _baseSourceTime = 0;
 
 
+                /// <summary>Creates a settable clock over the supplied source and captures its initial source timestamp.</summary>
                 explicit ClockSettableBase(
                     ITimeSource* timeSource =
                         HighResolutionTimeSourceT<
@@ -170,6 +179,7 @@ namespace ESPressio {
                 using TickType = TTick;
 
 
+                /// <inheritdoc/>
                 TTime GetTime() const override {
                     const TTick sourceTime =
                         this->GetSourceTime();
@@ -200,6 +210,7 @@ namespace ESPressio {
                 }
 
 
+                /// <inheritdoc/>
                 void SetTime(
                     const TTime& time
                 ) override {
