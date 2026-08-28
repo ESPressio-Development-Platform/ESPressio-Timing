@@ -13,6 +13,8 @@
 namespace ESPressio {
 namespace Timing {
 
+/// <summary>Observable stopwatch implementation backed by a monotonic <c>ITimeSource</c>.</summary>
+/// <typeparam name="TLockPolicy">Synchronization policy protecting stopwatch state.</typeparam>
 template<
     typename TTime = DefaultClockTime,
     typename TLockPolicy = ThreadSafeLockPolicy,
@@ -56,6 +58,7 @@ public:
     using TimeType = TTime;
     using TickType = TTick;
 
+    /// <summary>Creates a stopwatch over the supplied time source and optionally starts it immediately.</summary>
     explicit StopwatchClock(
         bool startImmediately = false,
         ITimeSource* timeSource =
@@ -66,6 +69,7 @@ public:
         }
     }
 
+    /// <inheritdoc/>
     void Start() override {
         const TTick sourceTime = this->GetSourceTime();
         TTick elapsed = 0;
@@ -93,6 +97,7 @@ public:
         }
     }
 
+    /// <inheritdoc/>
     void Stop() override {
         const TTick sourceTime = this->GetSourceTime();
         TTick elapsed = 0;
@@ -121,6 +126,7 @@ public:
         }
     }
 
+    /// <inheritdoc/>
     void Reset() override {
         const TTick sourceTime = this->GetSourceTime();
         TTick previousElapsed = 0;
@@ -149,6 +155,7 @@ public:
         );
     }
 
+    /// <inheritdoc/>
     void Restart() override {
         const TTick sourceTime = this->GetSourceTime();
         TTick previousElapsed = 0;
@@ -175,6 +182,7 @@ public:
         );
     }
 
+    /// <inheritdoc/>
     TTime GetTime() const override {
         const TTick sourceTime = this->GetSourceTime();
 
@@ -193,15 +201,18 @@ public:
         );
     }
 
+    /// <inheritdoc/>
     TTime GetLapTime() const override {
         return GetTime();
     }
 
+    /// <inheritdoc/>
     bool GetIsRunning() const override {
         typename TLockPolicy::Guard lock(_clockMutex);
         return _isRunning;
     }
 
+    /// <inheritdoc/>
     void SetTime(
         const TTime& time
     ) override {
@@ -241,12 +252,14 @@ public:
         );
     }
 
+    /// <summary>Registers an observer for stopwatch lifecycle notifications.</summary>
     Observable::ObserverHandlePtr RegisterObserver(
         IStopwatchClockObserver<TTime, TTick>* observer
     ) {
         return _observable->RegisterObserver(observer);
     }
 
+    /// <summary>Unregisters a stopwatch lifecycle observer.</summary>
     void UnregisterObserver(
         IStopwatchClockObserver<TTime, TTick>* observer
     ) {
@@ -254,6 +267,7 @@ public:
     }
 };
 
+/// <summary>Stopwatch specialization using a no-op lock policy for single-threaded consumers.</summary>
 template<
     typename TTime = DefaultClockTime,
     typename TTick = ClockTick
