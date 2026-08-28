@@ -66,22 +66,9 @@ namespace ESPressio {
         }
 
 
-        /*
-         * Customization point connecting a public clock-time representation
-         * with Timing's nanosecond tick domain.
-         *
-         * The default specialization accepts Unit-like types exposing:
-         *
-         *   value
-         *   orderOfMagnitude
-         *   TTime(value, magnitude)
-         *
-         * This intentionally covers both Units::Time and its opt-in
-         * Serializable wrapper without Timing depending upon Serializable.
-         *
-         * Applications may explicitly specialize TimeTraits<T> for unrelated
-         * custom time representations.
-         */
+        /// <summary>Customization point connecting a public clock-time representation to Timing's canonical nanosecond tick domain.</summary>
+        /// <typeparam name="TTime">Public time representation.</typeparam>
+        /// <remarks>The default specialization supports Unit-like values exposing <c>value</c>, <c>orderOfMagnitude</c>, and a matching value/magnitude constructor. Applications may specialize this trait for unrelated time types.</remarks>
         template<typename TTime, typename TEnable = void>
         struct TimeTraits {
             static_assert(
@@ -93,6 +80,7 @@ namespace ESPressio {
         };
 
 
+        /// <summary>Default <c>TimeTraits</c> implementation for ESPressio Unit-compatible time representations.</summary>
         template<typename TTime>
         struct TimeTraits<
             TTime,
@@ -117,6 +105,7 @@ namespace ESPressio {
                 >;
 
 
+            /// <summary>Creates a public time value from nanoseconds using a magnitude appropriate to the supplied resolution.</summary>
             template<typename TTick = ClockTick>
             static TTime FromNanoseconds(
                 TTick nanoseconds,
@@ -146,6 +135,7 @@ namespace ESPressio {
             }
 
 
+            /// <summary>Converts a public time representation to saturating nanoseconds.</summary>
             template<typename TTick = ClockTick>
             static TTick ToNanoseconds(
                 const TTime& time
