@@ -21,12 +21,8 @@
 namespace ESPressio {
 namespace Timing {
 
-    /*
-     * Compatibility adapter for the historical GPTimerTimeSource API.
-     * The class no longer owns or references ESP-IDF GPTimer resources; it
-     * consumes the platform-neutral System high-resolution counter capability.
-     * New code should prefer HighResolutionTimeSource.
-     */
+    /// <summary>Compatibility time-source adapter exposing the historical GPTimer API over the platform-neutral System high-resolution counter.</summary>
+    /// <remarks>New code should prefer <c>HighResolutionTimeSource</c>; this adapter no longer owns or directly references ESP-IDF GPTimer resources.</remarks>
     class GPTimerTimeSource : public ITimeSource {
     private:
         std::unique_ptr<System::Clock::IHighResolutionCounter> _counter;
@@ -34,6 +30,7 @@ namespace Timing {
             System::PlatformResult::Failed(System::PlatformStatus::Unavailable);
 
     public:
+        /// <summary>Creates and starts a high-resolution counter at the requested resolution when supported by the platform provider.</summary>
         explicit GPTimerTimeSource(
             uint32_t requestedResolution =
                 ESPRESSIO_TIMING_GPTIMER_DEFAULT_RESOLUTION_HZ
@@ -71,20 +68,24 @@ namespace Timing {
         GPTimerTimeSource(GPTimerTimeSource&&) = delete;
         GPTimerTimeSource& operator=(GPTimerTimeSource&&) = delete;
 
+        /// <inheritdoc/>
         uint64_t GetTicks() const override {
             if (_counter == nullptr || !_counter->IsAvailable()) return 0;
             uint64_t count = 0;
             return _counter->Read(count) ? count : 0;
         }
 
+        /// <inheritdoc/>
         uint64_t GetTicksPerSecond() const override {
             return _counter != nullptr ? _counter->ResolutionHz() : 0;
         }
 
+        /// <summary>Indicates whether the platform counter is available and ready for reads.</summary>
         bool GetIsAvailable() const {
             return _counter != nullptr && _counter->IsAvailable();
         }
 
+        /// <summary>Returns the result of counter creation/initialization/startup.</summary>
         System::PlatformResult GetInitializationResult() const {
             return _initializationResult;
         }
