@@ -20,6 +20,7 @@ namespace Timing {
 
     namespace Internal {
 
+        /// <summary>Converts raw source ticks to saturating nanoseconds using the source frequency.</summary>
         inline ClockTick TicksToNanoseconds(
             uint64_t ticks,
             uint64_t ticksPerSecond
@@ -45,6 +46,7 @@ namespace Timing {
             return wholeNanoseconds + remainingNanoseconds;
         }
 
+        /// <summary>Returns the nanosecond resolution corresponding to a raw tick frequency.</summary>
         inline ClockTick GetSourceResolution(uint64_t ticksPerSecond) {
             if (ticksPerSecond == 0) return 0;
             return ticksPerSecond >= NanosecondsPerSecond
@@ -54,6 +56,7 @@ namespace Timing {
 
     }
 
+    /// <summary>Default monotonic time source preferring the configured high-resolution counter and falling back to the System platform clock.</summary>
     template<typename TLockPolicy>
     class HighResolutionTimeSourceT : public ITimeSource {
     private:
@@ -62,6 +65,7 @@ namespace Timing {
 #endif
 
     public:
+        /// <inheritdoc/>
         uint64_t GetTicks() const override {
 #if ESPRESSIO_TIMING_USE_GPTIMER_BY_DEFAULT
             if (_highResolutionCounter.GetIsAvailable()) {
@@ -71,6 +75,7 @@ namespace Timing {
             return System::Clock::Monotonic().NowNanoseconds();
         }
 
+        /// <inheritdoc/>
         uint64_t GetTicksPerSecond() const override {
 #if ESPRESSIO_TIMING_USE_GPTIMER_BY_DEFAULT
             if (_highResolutionCounter.GetIsAvailable()) {
@@ -80,6 +85,7 @@ namespace Timing {
             return NanosecondsPerSecond;
         }
 
+        /// <summary>Indicates whether the preferred high-resolution platform counter is active.</summary>
         bool GetIsUsingHighResolutionCounter() const {
 #if ESPRESSIO_TIMING_USE_GPTIMER_BY_DEFAULT
             return _highResolutionCounter.GetIsAvailable();
@@ -88,21 +94,23 @@ namespace Timing {
 #endif
         }
 
-        // Compatibility name retained for callers from the previous ESP32-
-        // specific implementation. It no longer implies an ESP-IDF dependency.
+        /// <summary>Compatibility alias for <c>GetIsUsingHighResolutionCounter()</c>.</summary>
         bool GetIsUsingGPTimer() const {
             return GetIsUsingHighResolutionCounter();
         }
 
+        /// <summary>Returns the process-wide singleton instance for this lock-policy specialization.</summary>
         static HighResolutionTimeSourceT* GetInstance() {
             static HighResolutionTimeSourceT instance;
             return &instance;
         }
     };
 
+    /// <summary>Thread-safe default high-resolution time source.</summary>
     using HighResolutionTimeSource =
         HighResolutionTimeSourceT<ThreadSafeLockPolicy>;
 
+    /// <summary>Single-threaded high-resolution time-source specialization.</summary>
     using SingleThreadedHighResolutionTimeSource =
         HighResolutionTimeSourceT<NoLockPolicy>;
 
