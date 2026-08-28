@@ -7,6 +7,7 @@ namespace ESPressio {
 namespace Timing {
 namespace Internal {
 
+/// <summary>Computes a signed, saturating difference between two unsigned clock tick values.</summary>
 template<typename TTick>
 inline int64_t SignedDifference(
     TTick after,
