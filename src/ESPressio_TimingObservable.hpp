@@ -3,6 +3,7 @@
 #include <memory>
 #include <utility>
 
+#include <ESPressio_Memory.hpp>
 #include <ESPressio_ThreadSafeObservable.hpp>
 
 namespace ESPressio {
@@ -32,10 +33,14 @@ public:
     }
 };
 
-/// <summary>Creates a shared Timing observer dispatcher suitable for notification operations.</summary>
+/// <summary>Creates a shared Timing observer dispatcher in externally preferred memory.</summary>
+/// <remarks>Timing observer bookkeeping is non-DMA state and therefore should not consume scarce internal RAM when an external-capable System provider is active.</remarks>
 inline std::shared_ptr<TimingObservable>
 CreateTimingObservable() {
-    return std::make_shared<TimingObservable>();
+    return System::Memory::MakeShared<
+        TimingObservable,
+        System::Memory::MemoryPolicy::ExternalPreferred
+    >();
 }
 
 } // namespace Timing
