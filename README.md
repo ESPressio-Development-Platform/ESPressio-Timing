@@ -4,6 +4,22 @@ Timing Components of the ESPressio Development Platform.
 
 High-resolution system, stopwatch, and RTC clock abstractions with a generic public time representation.
 
+## Active Working-Branch Platform Architecture
+
+The `feature/29-platform-clock-abstractions` source line moves target-specific clock acquisition out of reusable ESPressio-Timing code. Timing owns clock, stopwatch, synchronization, discipline, scheduling, and public time-representation semantics; primitive monotonic-clock and high-resolution-counter capabilities are supplied by ESPressio-System, with target implementations such as ESPressio-ESP32 providing the underlying hardware/runtime access.
+
+Reusable Timing code therefore no longer selects or owns ESP-IDF `esp_timer`/GPTimer facilities, Arduino `micros()`, or host `std::chrono` fallbacks directly. Platform selection occurs through the installed ESPressio-System clock providers. On ESP32, applications should install the applicable ESPressio-ESP32/System providers before Timing first requires platform clock or high-resolution-counter services.
+
+For the disciplined Timing System Clock API, new cross-library code should include:
+
+```cpp
+#include <ESPressio_TimingSystemClock.hpp>
+```
+
+The primitive System platform-clock contract is exposed separately through `ESPressio_SystemPlatformClock.hpp`. The historical `GPTimerTimeSource` remains as a source-compatibility adapter over `System::Clock::IHighResolutionCounter`; new code should prefer the generic high-resolution-counter terminology and `GetIsUsingHighResolutionCounter()`.
+
+This working branch no longer requires consumers to include ESP-IDF timer headers or handle `esp_err_t`/GPTimer-native types in Timing APIs. The published-version information below is retained as release-history guidance until the staged Timing release is prepared.
+
 ## Latest Stable Version
 
 The current version is **2.2.8**.

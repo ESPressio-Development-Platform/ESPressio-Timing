@@ -8,6 +8,7 @@ namespace ESPressio {
 
     namespace Timing {
 
+        /// <summary>High-level acquisition state of a disciplined clock.</summary>
         enum class ClockSynchronizationState : uint8_t {
             Unsynchronized,
             Acquiring,
@@ -15,6 +16,7 @@ namespace ESPressio {
         };
 
 
+        /// <summary>Controls whether synchronization corrects phase by slewing, startup stepping, or unconditional stepping.</summary>
         enum class ClockSynchronizationAdjustmentMode : uint8_t {
             /*
              * Never move the public System Clock discontinuously.
@@ -41,6 +43,8 @@ namespace ESPressio {
         };
 
 
+        /// <summary>Four timestamps captured during a two-way clock synchronization exchange.</summary>
+        /// <typeparam name="TTick">Raw timestamp type used by the synchronization transport.</typeparam>
         template<typename TTick = ClockTick>
         struct ClockSynchronizationSample {
             /*
@@ -63,6 +67,7 @@ namespace ESPressio {
         };
 
 
+        /// <summary>Filtering, delay-rejection, slew, drift-learning, and synchronization-state configuration.</summary>
         struct ClockSynchronizationConfig {
             /*
              * Samples exceeding this measured network round-trip delay are
@@ -132,6 +137,7 @@ namespace ESPressio {
         };
 
 
+        /// <summary>Outcome and current estimates produced when one synchronization sample is submitted.</summary>
         template<typename TTick = ClockTick>
         struct ClockSynchronizationResult {
             bool Accepted = false;
@@ -148,6 +154,7 @@ namespace ESPressio {
         };
 
 
+        /// <summary>Snapshot of synchronization state, phase correction, delay, drift, and sample counters.</summary>
         template<typename TTick = ClockTick>
         struct ClockSynchronizationStatus {
             ClockSynchronizationState State =

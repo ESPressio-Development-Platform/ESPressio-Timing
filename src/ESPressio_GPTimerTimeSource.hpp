@@ -1,189 +1,95 @@
 #pragma once
 
 #include <cstdint>
+#include <memory>
+
+#include <ESPressio_SystemPlatformClock.hpp>
 
 #include "ESPressio_ITimeSource.hpp"
-
-#ifndef ESPRESSIO_TIMING_HAS_GPTIMER
-    #if defined(ESP32) && defined(__has_include)
-        #if __has_include("driver/gptimer.h")
-            #define ESPRESSIO_TIMING_HAS_GPTIMER 1
-        #else
-            #define ESPRESSIO_TIMING_HAS_GPTIMER 0
-        #endif
-    #else
-        #define ESPRESSIO_TIMING_HAS_GPTIMER 0
-    #endif
-#endif
 
 #ifndef ESPRESSIO_TIMING_GPTIMER_DEFAULT_RESOLUTION_HZ
     #define ESPRESSIO_TIMING_GPTIMER_DEFAULT_RESOLUTION_HZ 10000000UL
 #endif
 
-#if ESPRESSIO_TIMING_HAS_GPTIMER
-
-#include "driver/gptimer.h"
-#include "esp_err.h"
+#ifndef ESPRESSIO_TIMING_HAS_GPTIMER
+    // Compatibility macro retained for existing consumers. The implementation
+    // is now provider-driven and therefore no longer depends on an ESP32
+    // compile-time capability check.
+    #define ESPRESSIO_TIMING_HAS_GPTIMER 1
+#endif
 
 namespace ESPressio {
+namespace Timing {
 
-    namespace Timing {
+    /// <summary>Compatibility time-source adapter exposing the historical GPTimer API over the platform-neutral System high-resolution counter.</summary>
+    /// <remarks>New code should prefer <c>HighResolutionTimeSource</c>; this adapter no longer owns or directly references ESP-IDF GPTimer resources.</remarks>
+    class GPTimerTimeSource : public ITimeSource {
+    private:
+        std::unique_ptr<System::Clock::IHighResolutionCounter> _counter;
+        System::PlatformResult _initializationResult =
+            System::PlatformResult::Failed(System::PlatformStatus::Unavailable);
 
-        class GPTimerTimeSource :
-            public ITimeSource {
+    public:
+        /// <summary>Creates and starts a high-resolution counter at the requested resolution when supported by the platform provider.</summary>
+        explicit GPTimerTimeSource(
+            uint32_t requestedResolution =
+                ESPRESSIO_TIMING_GPTIMER_DEFAULT_RESOLUTION_HZ
+        ) {
+            if (requestedResolution == 0) {
+                _initializationResult = System::PlatformResult::Failed(
+                    System::PlatformStatus::InvalidArgument
+                );
+                return;
+            }
 
-            private:
-                gptimer_handle_t _timer = nullptr;
-                uint32_t _resolution = 0;
-                esp_err_t _initializationResult = ESP_OK;
-                bool _isEnabled = false;
-                bool _isRunning = false;
+            _counter = System::Clock::CreateHighResolutionCounter(
+                requestedResolution
+            );
+            if (_counter == nullptr) {
+                return;
+            }
 
-                void Initialize(
-                    uint32_t requestedResolution
-                ) {
-                    if (requestedResolution == 0) {
-                        _initializationResult =
-                            ESP_ERR_INVALID_ARG;
-                        return;
-                    }
+            _initializationResult = _counter->InitializationResult();
+            if (!_initializationResult || !_counter->IsAvailable()) {
+                _counter.reset();
+                return;
+            }
 
-                    gptimer_config_t configuration = {};
-                    configuration.clk_src =
-                        GPTIMER_CLK_SRC_DEFAULT;
-                    configuration.direction =
-                        GPTIMER_COUNT_UP;
-                    configuration.resolution_hz =
-                        requestedResolution;
+            _initializationResult = _counter->Start();
+            if (!_initializationResult) {
+                _counter.reset();
+            }
+        }
 
-                    _initializationResult =
-                        gptimer_new_timer(
-                            &configuration,
-                            &_timer
-                        );
+        ~GPTimerTimeSource() override = default;
 
-                    if (_initializationResult != ESP_OK) {
-                        _timer = nullptr;
-                        return;
-                    }
+        GPTimerTimeSource(const GPTimerTimeSource&) = delete;
+        GPTimerTimeSource& operator=(const GPTimerTimeSource&) = delete;
+        GPTimerTimeSource(GPTimerTimeSource&&) = delete;
+        GPTimerTimeSource& operator=(GPTimerTimeSource&&) = delete;
 
-                    _initializationResult =
-                        gptimer_get_resolution(
-                            _timer,
-                            &_resolution
-                        );
+        /// <inheritdoc/>
+        uint64_t GetTicks() const override {
+            if (_counter == nullptr || !_counter->IsAvailable()) return 0;
+            uint64_t count = 0;
+            return _counter->Read(count) ? count : 0;
+        }
 
-                    if (_initializationResult != ESP_OK) {
-                        gptimer_del_timer(_timer);
-                        _timer = nullptr;
-                        _resolution = 0;
-                        return;
-                    }
+        /// <inheritdoc/>
+        uint64_t GetTicksPerSecond() const override {
+            return _counter != nullptr ? _counter->ResolutionHz() : 0;
+        }
 
-                    _initializationResult =
-                        gptimer_enable(_timer);
+        /// <summary>Indicates whether the platform counter is available and ready for reads.</summary>
+        bool GetIsAvailable() const {
+            return _counter != nullptr && _counter->IsAvailable();
+        }
 
-                    if (_initializationResult != ESP_OK) {
-                        gptimer_del_timer(_timer);
-                        _timer = nullptr;
-                        _resolution = 0;
-                        return;
-                    }
-
-                    _isEnabled = true;
-
-                    _initializationResult =
-                        gptimer_start(_timer);
-
-                    if (_initializationResult != ESP_OK) {
-                        gptimer_disable(_timer);
-                        gptimer_del_timer(_timer);
-                        _timer = nullptr;
-                        _resolution = 0;
-                        _isEnabled = false;
-                        return;
-                    }
-
-                    _isRunning = true;
-                }
-
-            public:
-                explicit GPTimerTimeSource(
-                    uint32_t requestedResolution =
-                        ESPRESSIO_TIMING_GPTIMER_DEFAULT_RESOLUTION_HZ
-                ) {
-                    Initialize(
-                        requestedResolution
-                    );
-                }
-
-                ~GPTimerTimeSource() override {
-                    if (_timer == nullptr) {
-                        return;
-                    }
-
-                    if (_isRunning) {
-                        gptimer_stop(_timer);
-                    }
-
-                    if (_isEnabled) {
-                        gptimer_disable(_timer);
-                    }
-
-                    gptimer_del_timer(_timer);
-                }
-
-                GPTimerTimeSource(
-                    const GPTimerTimeSource&
-                ) = delete;
-
-                GPTimerTimeSource& operator=(
-                    const GPTimerTimeSource&
-                ) = delete;
-
-                GPTimerTimeSource(
-                    GPTimerTimeSource&&
-                ) = delete;
-
-                GPTimerTimeSource& operator=(
-                    GPTimerTimeSource&&
-                ) = delete;
-
-
-                uint64_t GetTicks() const override {
-                    if (!_isRunning) {
-                        return 0;
-                    }
-
-                    uint64_t count = 0;
-
-                    return
-                        gptimer_get_raw_count(
-                            _timer,
-                            &count
-                        ) == ESP_OK
-                            ? count
-                            : 0;
-                }
-
-
-                uint64_t GetTicksPerSecond() const override {
-                    return _resolution;
-                }
-
-
-                bool GetIsAvailable() const {
-                    return _isRunning;
-                }
-
-
-                esp_err_t GetInitializationResult() const {
-                    return _initializationResult;
-                }
-        };
-
-    }
+        /// <summary>Returns the result of counter creation/initialization/startup.</summary>
+        System::PlatformResult GetInitializationResult() const {
+            return _initializationResult;
+        }
+    };
 
 }
-
-#endif
+}

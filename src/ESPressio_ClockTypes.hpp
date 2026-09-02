@@ -7,26 +7,19 @@ namespace ESPressio {
 
     namespace Timing {
 
-        /*
-         * Raw internal clock storage.
-         *
-         * Public time representations are deliberately separate from raw
-         * monotonic storage. Clock algorithms therefore do not acquire any
-         * serialization or presentation overhead merely because TTime does.
-         */
+        /// <summary>Unsigned nanosecond-oriented storage type used internally by clock algorithms.</summary>
+        /// <remarks>Raw clock storage is intentionally separate from public unit-aware time representations.</remarks>
         using ClockTick = uint64_t;
 
+        /// <summary>Number of nanoseconds in one microsecond.</summary>
         static constexpr ClockTick NanosecondsPerMicrosecond = 1000ULL;
+        /// <summary>Number of nanoseconds in one millisecond.</summary>
         static constexpr ClockTick NanosecondsPerMillisecond = 1000000ULL;
+        /// <summary>Number of nanoseconds in one second.</summary>
         static constexpr ClockTick NanosecondsPerSecond = 1000000000ULL;
 
-        /*
-         * Default public representation. Timing itself depends only on the
-         * ordinary ESPressio Units Time type.
-         *
-         * Applications may select any compatible TTime, including an optional
-         * SerializableTime type supplied by ESPressio Units.
-         */
+        /// <summary>Default public clock representation: an unsigned 64-bit ESPressio time value expressed in nanoseconds.</summary>
+        /// <remarks>Clock templates may use another compatible unit-aware time representation where required.</remarks>
         using DefaultClockTime =
             Units::Time<
                 uint64_t,
