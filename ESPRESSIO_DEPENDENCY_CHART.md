@@ -26,11 +26,11 @@ Serial        0.8.1
 
 ```text
 Timing 2.2.8
-    -> Units >= 0.2.7 < 1.0.0
-    -> Observable >= 3.0.2 < 4.0.0
+    -> Units main
+    -> Observable main
 ```
 
-Timing deliberately has **no direct Serializable dependency**. Serializable Timing representations are obtained by selecting Serializable Unit types as `TTime`; Timing 2.2.8 validates that path against Units 0.2.7 and Serializable 0.11.3.
+Timing deliberately has **no direct Serializable dependency**. Serializable Timing representations are obtained by selecting Serializable Unit types as `TTime`; during the release restructuring that path is validated against Units `main` and Serializable `main`.
 
 ## Completed propagation
 
