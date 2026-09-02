@@ -26,10 +26,10 @@ The current version is **2.2.8**.
 
 ### Current ESPressio dependencies
 
-- **ESPressio Units >= 0.2.7 < 1.0.0**
-- **ESPressio Observable >= 3.0.2 < 4.0.0**
+- **ESPressio Units `main`**
+- **ESPressio Observable `main`**
 
-Version 2.2.8 advances Timing to the released Units 0.2.7 baseline as part of the Serializable 0.11.3 dependency cascade. Timing itself remains independent of ESPressio Serializable; applications selecting Serializable Unit time types consume Serializable through Units, and CI validates that path against Serializable 0.11.3.
+During the release restructuring, Timing consumes Units and Observable from `main`. Timing itself remains independent of ESPressio Serializable; applications selecting Serializable Unit time types consume Serializable through Units, and CI validates that path against Serializable `main`.
 
 ## Version 2.2.0
 
@@ -747,9 +747,11 @@ instead of naming `DefaultClockTime`.
 
 ## PlatformIO
 
+During the release restructuring, consume Timing directly from `main`:
+
 ```ini
 lib_deps =
-    espressio-development-platform/ESPressio-Timing@^2.2.8
+    https://github.com/ESPressio-Development-Platform/ESPressio-Timing.git#main
 ```
 
-A project selecting Serializable Units additionally declares ESPressio Units `^0.2.7` and ESPressio Serializable `^0.11.3`. Timing does not acquire a direct Serializable dependency.
+A project selecting Serializable Units additionally declares ESPressio Units and ESPressio Serializable from their `main` branches. Timing does not acquire a direct Serializable dependency.
