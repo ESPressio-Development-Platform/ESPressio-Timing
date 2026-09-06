@@ -369,6 +369,7 @@ MaximumRoundTripDelayNanoseconds
 MaximumSlewRatePpm
 MaximumDriftCorrectionPpm
 OffsetFilterWeight
+ClockFilterWindowSamples
 DriftFilterWeight
 DriftLearningPhaseThresholdNanoseconds
 MinimumDriftLearningIntervalNanoseconds
@@ -376,6 +377,8 @@ SynchronizationToleranceNanoseconds
 MinimumSamplesForSynchronizedState
 MaximumSampleAgeNanoseconds
 ```
+
+`ClockFilterWindowSamples` is a fixed-capacity NTP-style clock filter (clamped to 1–8 samples). Timing selects the recent exchange with the lowest round-trip delay before applying the exponential offset filter, because variable transport and callback residence time can only increase the observed path delay. Retained offsets are compensated for clock correction already applied since their capture, so an older low-delay observation does not become stale while the phase servo slews.
 
 For example:
 

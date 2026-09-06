@@ -1,6 +1,7 @@
 #pragma once
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdint>
 #include <limits>
@@ -258,6 +259,17 @@ namespace ESPressio {
                 bool _hasAcceptedSample = false;
                 bool _hasFilteredOffset = false;
 
+                struct ClockFilterSample {
+                    int64_t OffsetNanoseconds = 0;
+                    uint64_t RoundTripDelayNanoseconds = 0;
+                    int64_t AppliedCorrectionNanoseconds = 0;
+                };
+
+                static constexpr std::size_t MaximumClockFilterSamples = 8;
+                std::array<ClockFilterSample, MaximumClockFilterSamples> _clockFilter{};
+                uint8_t _clockFilterCount = 0;
+                uint8_t _clockFilterWriteIndex = 0;
+
                 int64_t _lastMeasuredOffsetNanoseconds = 0;
                 int64_t _filteredOffsetNanoseconds = 0;
                 uint64_t _lastRoundTripDelayNanoseconds = 0;
@@ -413,6 +425,55 @@ namespace ESPressio {
                                 )
                             );
                     }
+                }
+
+
+                int64_t SelectMinimumDelayOffset(
+                    int64_t measuredOffset,
+                    uint64_t roundTripDelay,
+                    bool& currentSampleSelected
+                ) {
+                    const uint8_t window =
+                        std::max<uint8_t>(
+                            1,
+                            std::min<uint8_t>(
+                                static_cast<uint8_t>(MaximumClockFilterSamples),
+                                _config.ClockFilterWindowSamples
+                            )
+                        );
+
+                    const uint8_t insertedIndex = _clockFilterWriteIndex;
+                    _clockFilter[insertedIndex] = {
+                        measuredOffset,
+                        roundTripDelay,
+                        _appliedCorrectionNanoseconds
+                    };
+                    _clockFilterWriteIndex =
+                        static_cast<uint8_t>((insertedIndex + 1U) % window);
+                    if (_clockFilterCount < window) ++_clockFilterCount;
+
+                    uint8_t selectedIndex = insertedIndex;
+                    uint64_t selectedDelay = roundTripDelay;
+                    for (uint8_t index = 0; index < _clockFilterCount; ++index) {
+                        const auto& candidate = _clockFilter[index];
+                        // Keep the just-inserted sample when delays are equal.
+                        if (candidate.RoundTripDelayNanoseconds < selectedDelay) {
+                            selectedDelay = candidate.RoundTripDelayNanoseconds;
+                            selectedIndex = index;
+                        }
+                    }
+
+                    currentSampleSelected = selectedIndex == insertedIndex;
+                    const auto& selected = _clockFilter[selectedIndex];
+                    const int64_t correctionSinceSample =
+                        Internal::SaturatingSignedSubtract(
+                            _appliedCorrectionNanoseconds,
+                            selected.AppliedCorrectionNanoseconds
+                        );
+                    return Internal::SaturatingSignedSubtract(
+                        selected.OffsetNanoseconds,
+                        correctionSinceSample
+                    );
                 }
 
 
@@ -606,6 +667,8 @@ namespace ESPressio {
                 void Configure(
                     const ClockSynchronizationConfig& config
                 ) {
+                    const uint8_t previousClockFilterWindow =
+                        _config.ClockFilterWindowSamples;
                     _config = config;
 
                     _config.MaximumSlewRatePpm =
@@ -621,6 +684,21 @@ namespace ESPressio {
                                 _config.MaximumDriftCorrectionPpm
                             )
                         );
+
+                    _config.ClockFilterWindowSamples =
+                        std::max<uint8_t>(
+                            1,
+                            std::min<uint8_t>(
+                                static_cast<uint8_t>(MaximumClockFilterSamples),
+                                _config.ClockFilterWindowSamples
+                            )
+                        );
+
+                    if (_config.ClockFilterWindowSamples != previousClockFilterWindow) {
+                        _clockFilter = {};
+                        _clockFilterCount = 0;
+                        _clockFilterWriteIndex = 0;
+                    }
                 }
 
 
@@ -692,31 +770,41 @@ namespace ESPressio {
                         _pendingPhaseCorrectionNanoseconds ==
                         0;
 
+                    bool currentSampleSelected = false;
+                    const int64_t clockFilterOffset =
+                        SelectMinimumDelayOffset(
+                            measuredOffset,
+                            roundTripDelay,
+                            currentSampleSelected
+                        );
+
                     /*
-                     * During acquisition, previous residual offsets become
-                     * stale as the phase servo actively removes them. Use the
-                     * latest measurement directly. Once settled, filtering is
-                     * useful for radio/scheduler jitter.
+                     * The minimum-delay stage rejects asymmetric queue/callback
+                     * residence excursions. Stored offsets are adjusted by the
+                     * correction applied since capture, so they remain residual
+                     * phase observations while the servo slews. Always retain
+                     * exponential filtering after the first sample; replacing it
+                     * merely because a correction is pending would re-enter
+                     * acquisition and chase each raw jitter observation.
                      */
                     if (
-                        !_hasFilteredOffset ||
-                        !phaseWasSettled
+                        !_hasFilteredOffset
                     ) {
                         _filteredOffsetNanoseconds =
-                            measuredOffset;
+                            clockFilterOffset;
 
                         _hasFilteredOffset =
                             true;
                     } else {
                         UpdateFilteredOffset(
-                            measuredOffset
+                            clockFilterOffset
                         );
                     }
 
-                    if (phaseWasSettled) {
+                    if (phaseWasSettled && currentSampleSelected) {
                         TryLearnDrift(
                             sample.LocalResponseReceiveTime,
-                            measuredOffset
+                            clockFilterOffset
                         );
                     } else {
                         _hasPreviousDriftSample =

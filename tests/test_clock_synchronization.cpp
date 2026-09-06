@@ -205,12 +205,88 @@ static void TestDriftLearning() {
 }
 
 
+static ClockSynchronizationSample<uint64_t> OffsetAndDelaySample(
+    uint64_t localTime,
+    int64_t offset,
+    uint64_t delay
+) {
+    ClockSynchronizationSample<uint64_t> sample;
+    sample.LocalRequestTransmitTime = localTime;
+    sample.RemoteRequestReceiveTime = static_cast<uint64_t>(
+        static_cast<int64_t>(localTime) + offset + static_cast<int64_t>(delay / 2U));
+    sample.RemoteResponseTransmitTime = sample.RemoteRequestReceiveTime;
+    sample.LocalResponseReceiveTime = localTime + delay;
+    return sample;
+}
+
+
+static void TestMinimumDelayClockFilterRejectsQueueExcursion() {
+    ClockSynchronizationConfig config;
+    config.OffsetFilterWeight = 1.0;
+    config.ClockFilterWindowSamples = 4;
+
+    ClockDiscipline<uint64_t> discipline(config);
+    auto baseline = discipline.SubmitSample(
+        OffsetAndDelaySample(1000000000ULL, 200000, 2000000ULL));
+    assert(baseline.Accepted);
+    assert(baseline.FilteredOffsetNanoseconds == 200000);
+
+    auto excursion = discipline.SubmitSample(
+        OffsetAndDelaySample(2000000000ULL, 5200000, 16000000ULL));
+    assert(excursion.Accepted);
+    assert(excursion.MeasuredOffsetNanoseconds == 5200000);
+    assert(excursion.FilteredOffsetNanoseconds == 200000);
+}
+
+
+static void TestClockFilterCompensatesAppliedCorrection() {
+    ClockSynchronizationConfig config;
+    config.MaximumSlewRatePpm = 100000;
+    config.OffsetFilterWeight = 1.0;
+    config.ClockFilterWindowSamples = 4;
+
+    ClockDiscipline<uint64_t> discipline(config);
+    auto first = discipline.SubmitSample(
+        OffsetAndDelaySample(1000000ULL, 1000, 100));
+    assert(first.Accepted);
+    discipline.Advance(1000000ULL);
+    discipline.Advance(1010000ULL);
+    assert(discipline.GetAppliedCorrectionNanoseconds() == 1000);
+
+    auto queued = discipline.SubmitSample(
+        OffsetAndDelaySample(2000000ULL, 4000, 10000));
+    assert(queued.Accepted);
+    assert(queued.MeasuredOffsetNanoseconds == 4000);
+    assert(queued.FilteredOffsetNanoseconds == 0);
+}
+
+
+static void TestClockFilterReconfigurationClearsRetainedWindow() {
+    ClockSynchronizationConfig config;
+    config.OffsetFilterWeight = 1.0;
+    config.ClockFilterWindowSamples = 4;
+    ClockDiscipline<uint64_t> discipline(config);
+    assert(discipline.SubmitSample(
+        OffsetAndDelaySample(1000000ULL, 200000, 100)).Accepted);
+
+    config.ClockFilterWindowSamples = 2;
+    discipline.Configure(config);
+    const auto afterReconfigure = discipline.SubmitSample(
+        OffsetAndDelaySample(2000000ULL, 700000, 10000));
+    assert(afterReconfigure.Accepted);
+    assert(afterReconfigure.FilteredOffsetNanoseconds == 700000);
+}
+
+
 int main() {
     TestSampleCalculation();
     TestMalformedSampleRejection();
     TestPhaseSlew();
     TestStep();
     TestDriftLearning();
+    TestMinimumDelayClockFilterRejectsQueueExcursion();
+    TestClockFilterCompensatesAppliedCorrection();
+    TestClockFilterReconfigurationClearsRetainedWindow();
 
     return 0;
 }

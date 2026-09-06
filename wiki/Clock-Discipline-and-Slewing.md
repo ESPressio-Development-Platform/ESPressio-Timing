@@ -10,7 +10,7 @@ This preserves monotonic progression and is appropriate while deadline-driven co
 - `StepIfUnsynchronized` — permit an initial hard step while acquiring/bootstrap is incomplete, then return to normal discipline.
 - `StepAlways` — allow immediate steps on accepted samples; use cautiously because the public timeline may move forwards or backwards.
 
-The default maximum phase slew rate in the current baseline is 500 ppm and is configurable.
+The default maximum phase slew rate in the current baseline is 500 ppm and is configurable. Before exponential phase filtering, the allocation-free clock filter retains up to eight valid exchanges and selects the lowest-delay observation. This suppresses positive-delay excursions caused by transport queues and receive-callback scheduling. Retained offsets are adjusted for correction already applied since capture.
 
 ## Drift estimation
 

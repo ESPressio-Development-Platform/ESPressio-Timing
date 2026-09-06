@@ -97,6 +97,14 @@ namespace ESPressio {
             double OffsetFilterWeight = 0.25;
 
             /*
+             * Number of recent valid exchanges retained by the NTP-style
+             * minimum-delay clock filter. The lowest-delay observation is
+             * least affected by variable transport/queue residence time.
+             * Values are clamped to the fixed, allocation-free range 1..8.
+             */
+            uint8_t ClockFilterWindowSamples = 8;
+
+            /*
              * Exponential filter weight for learned rate error.
              */
             double DriftFilterWeight = 0.10;
