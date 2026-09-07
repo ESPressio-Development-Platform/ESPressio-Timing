@@ -2,6 +2,15 @@
 
 This file records changes made during the platform-abstraction tranche tracked by issue #29.
 
+## 2026-09-07
+
+- Added `Timing::MonotonicClock<TTime>`, a non-settable clock facade intended for elapsed-time scheduling, timeout and cadence consumers which must remain independent of distributed/System Clock correction.
+- `MonotonicClock` consumes Timing's process-wide `HighResolutionTimeSource` by default; it does not allocate or own one counter per clock or per consuming thread.
+- Default source resolution is lazy on first read so global/static scheduler object construction can occur before platform-provider installation without prematurely constructing the shared high-resolution source.
+- On ESP32, `ESP32Platform::InstallSystemProviders()` installs the existing `System::Clock::IHighResolutionCounterProvider` concrete backed by ESP-IDF GPTimer. Timing's shared `HighResolutionTimeSource` therefore owns one GPTimer counter when provider installation precedes the first source read.
+- `SystemClock` and `MonotonicClock` may consume the same raw high-resolution source while exposing deliberately different semantics: SystemClock can step/slew/drift-correct its public timeline; MonotonicClock exposes the unchanged elapsed physical timeline.
+- Added a host regression which shares one raw source between a SystemClock facade and MonotonicClock, steps SystemClock forward and backward, and verifies the monotonic timeline changes only when raw source ticks advance.
+
 ## 2026-08-27
 
 - Created working branch `feature/29-platform-clock-abstractions` from `main`; no tranche changes are committed directly to `main`.
@@ -20,4 +29,4 @@ This file records changes made during the platform-abstraction tranche tracked b
 
 ## Boundary
 
-ESPressio-Timing owns clock, stopwatch, synchronization and time-representation semantics. ESPressio-System owns the primitive monotonic-clock and high-resolution-counter capabilities. ESPressio-ESP32 owns the `esp_timer` and ESP-IDF GPTimer implementations.
+ESPressio-Timing owns clock, stopwatch, synchronization and time-representation semantics, including the shared monotonic clock facade consumed by precision scheduling. ESPressio-System owns the primitive monotonic-clock and high-resolution-counter capabilities. ESPressio-ESP32 owns the `esp_timer` and ESP-IDF GPTimer implementations.
