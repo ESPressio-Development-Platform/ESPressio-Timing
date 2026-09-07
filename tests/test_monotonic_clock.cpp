@@ -15,7 +15,11 @@ public:
 };
 
 static uint64_t Nanoseconds(const DefaultClockTime& value) {
-    return value.ToMagnitude<uint64_t>(Units::Nano);
+    // DefaultClockTime is explicitly a nanosecond representation. Host Timing tests intentionally use the lightweight
+    // ESPressio_Time test double, so inspect that representation directly instead of depending on the full Units
+    // conversion surface that is separately covered by the ESP32 consumer jobs.
+    assert(value.orderOfMagnitude == Units::Nano);
+    return value.value;
 }
 
 int main() {
