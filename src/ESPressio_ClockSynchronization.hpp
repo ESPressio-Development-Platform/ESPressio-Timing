@@ -67,6 +67,76 @@ namespace ESPressio {
         };
 
 
+        /// <summary>Canonical Timing-owned reason that a four-timestamp sample cannot enter clock discipline.</summary>
+        enum class ClockSynchronizationSampleRejectionReason : uint8_t {
+            None = 0,
+            InvalidTimestampOrder,
+            RemoteProcessingExceedsLocalElapsed,
+            RoundTripDelayExceeded
+        };
+
+
+        /// <summary>Transport-neutral validation evidence for one four-timestamp synchronization sample.</summary>
+        struct ClockSynchronizationSampleValidation final {
+            ClockSynchronizationSampleRejectionReason RejectionReason =
+                ClockSynchronizationSampleRejectionReason::None;
+            uint64_t LocalElapsedNanoseconds = 0;
+            uint64_t RemoteProcessingElapsedNanoseconds = 0;
+            uint64_t RoundTripDelayNanoseconds = 0;
+
+            constexpr bool Accepted() const noexcept {
+                return RejectionReason == ClockSynchronizationSampleRejectionReason::None;
+            }
+        };
+
+
+        /// <summary>
+        /// Applies Timing's transport-independent structural/delay admission rules without modifying discipline state.
+        /// </summary>
+        /// <remarks>
+        /// This diagnostic surface exists so transports can retain reason-specific counters without duplicating Timing
+        /// policy. ClockDiscipline remains authoritative for actual sample acceptance, filtering, slew and drift state.
+        /// A zero maximumRoundTripDelayNanoseconds disables the delay limit, matching ClockSynchronizationConfig.
+        /// </remarks>
+        template<typename TTick = ClockTick>
+        ClockSynchronizationSampleValidation ValidateClockSynchronizationSample(
+            const ClockSynchronizationSample<TTick>& sample,
+            uint64_t maximumRoundTripDelayNanoseconds
+        ) noexcept {
+            ClockSynchronizationSampleValidation result{};
+            if (
+                sample.LocalResponseReceiveTime < sample.LocalRequestTransmitTime ||
+                sample.RemoteResponseTransmitTime < sample.RemoteRequestReceiveTime
+            ) {
+                result.RejectionReason =
+                    ClockSynchronizationSampleRejectionReason::InvalidTimestampOrder;
+                return result;
+            }
+
+            result.LocalElapsedNanoseconds = static_cast<uint64_t>(
+                sample.LocalResponseReceiveTime - sample.LocalRequestTransmitTime);
+            result.RemoteProcessingElapsedNanoseconds = static_cast<uint64_t>(
+                sample.RemoteResponseTransmitTime - sample.RemoteRequestReceiveTime);
+
+            if (result.RemoteProcessingElapsedNanoseconds > result.LocalElapsedNanoseconds) {
+                result.RejectionReason =
+                    ClockSynchronizationSampleRejectionReason::RemoteProcessingExceedsLocalElapsed;
+                return result;
+            }
+
+            result.RoundTripDelayNanoseconds =
+                result.LocalElapsedNanoseconds - result.RemoteProcessingElapsedNanoseconds;
+            if (
+                maximumRoundTripDelayNanoseconds > 0U &&
+                result.RoundTripDelayNanoseconds > maximumRoundTripDelayNanoseconds
+            ) {
+                result.RejectionReason =
+                    ClockSynchronizationSampleRejectionReason::RoundTripDelayExceeded;
+            }
+            return result;
+        }
+
+
         /// <summary>Filtering, delay-rejection, slew, drift-learning, and synchronization-state configuration.</summary>
         struct ClockSynchronizationConfig {
             /*
