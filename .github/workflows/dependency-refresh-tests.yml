@@ -7,6 +7,7 @@ on:
       - 'feature/**'
       - 'optimisation/**'
       - 'bugfix/**'
+      - 'structural_realignment*'
   pull_request:
     branches:
       - main
@@ -79,11 +80,15 @@ jobs:
           cat > project/compile/src/main.cpp <<'EOF'
           #include <Arduino.h>
           #include <ESPressio_TimingSystemClock.hpp>
+          #include <ESPressio_MonotonicClock.hpp>
           #include <ESPressio_Timing.hpp>
 
           void setup() {
-              auto& clock = ESPressio::Timing::SystemClock<>::GetInstance();
-              (void)clock.GetTime();
+              auto& systemClock = ESPressio::Timing::SystemClock<>::GetInstance();
+              auto& monotonicClock = ESPressio::Timing::MonotonicClock<>::GetInstance();
+              (void)systemClock.GetTime();
+              (void)monotonicClock.GetTime();
+              (void)monotonicClock.GetResolution();
           }
 
           void loop() {}
@@ -161,8 +166,12 @@ jobs:
 
               auto& systemClock =
                   ESPressio::Timing::SystemClock<SerializableClockTime>::GetInstance();
+              auto& monotonicClock =
+                  ESPressio::Timing::MonotonicClock<SerializableClockTime>::GetInstance();
               SerializableClockTime now = systemClock.GetTime();
+              SerializableClockTime monotonicNow = monotonicClock.GetTime();
               (void)now;
+              (void)monotonicNow;
           }
 
           void loop() {}
