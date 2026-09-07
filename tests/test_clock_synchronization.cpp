@@ -208,6 +208,48 @@ static void TestHardStepInvalidatesPreStepClockFilterHistory() {
 }
 
 
+static void TestFreshResidualMustSatisfySynchronizationTolerance() {
+    ClockSynchronizationConfig config;
+    config.OffsetFilterWeight = 1.0;
+    config.ClockFilterWindowSamples = 4U;
+    config.SynchronizationToleranceNanoseconds = 500000ULL;
+    config.MinimumSamplesForSynchronizedState = 2U;
+    config.MaximumRoundTripDelayNanoseconds = 1000000ULL;
+
+    ClockDiscipline<uint64_t> discipline(config);
+
+    // A precise low-delay sample establishes a plausible 0.1 ms phase estimate.
+    const auto baseline = discipline.SubmitSample(
+        OffsetAndDelaySample(1000000000ULL, 100000, 100000ULL));
+    assert(baseline.Accepted);
+    assert(baseline.FilteredOffsetNanoseconds == 100000);
+
+    // The next exchange is still accepted by the 1 ms RTT gate, but its fresh phase evidence is 5 ms away. The
+    // minimum-delay servo correctly keeps the older 0.1 ms sample as its filtered estimate; readiness must nevertheless
+    // reject the fresh 5 ms residual rather than claiming Synchronized from the historical filter winner.
+    const auto excursion = discipline.SubmitSample(
+        OffsetAndDelaySample(2000000000ULL, 5000000, 800000ULL));
+    assert(excursion.Accepted);
+    assert(excursion.RoundTripDelayNanoseconds == 800000ULL);
+    assert(excursion.MeasuredOffsetNanoseconds == 5000000);
+    assert(excursion.FilteredOffsetNanoseconds == 100000);
+    assert(discipline.GetPendingPhaseCorrectionNanoseconds() == 100000);
+
+    const auto excursionStatus = discipline.GetStatus(2000800000ULL);
+    assert(excursionStatus.AcceptedSampleCount == 2U);
+    assert(excursionStatus.LastMeasuredOffsetNanoseconds == 5000000);
+    assert(excursionStatus.State == ClockSynchronizationState::Acquiring);
+
+    // Once the freshest accepted residual is also inside tolerance, the same bounded filter may support Ready again.
+    const auto recovered = discipline.SubmitSample(
+        OffsetAndDelaySample(3000000000ULL, 200000, 700000ULL));
+    assert(recovered.Accepted);
+    const auto recoveredStatus = discipline.GetStatus(3000700000ULL);
+    assert(recoveredStatus.LastMeasuredOffsetNanoseconds == 200000);
+    assert(recoveredStatus.State == ClockSynchronizationState::Synchronized);
+}
+
+
 int main() {
     TestSampleCalculation();
     TestMalformedSampleRejection();
@@ -218,6 +260,7 @@ int main() {
     TestClockFilterCompensatesAppliedCorrection();
     TestClockFilterReconfigurationClearsRetainedWindow();
     TestHardStepInvalidatesPreStepClockFilterHistory();
+    TestFreshResidualMustSatisfySynchronizationTolerance();
 
     return 0;
 }
