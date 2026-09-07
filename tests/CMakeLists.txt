@@ -65,6 +65,24 @@ add_test(
 
 
 add_executable(
+    test_monotonic_clock
+    test_monotonic_clock.cpp
+)
+
+target_include_directories(
+    test_monotonic_clock
+    PRIVATE
+    ../src
+    ../test_support
+)
+
+add_test(
+    NAME MonotonicClock
+    COMMAND test_monotonic_clock
+)
+
+
+add_executable(
     test_clock_synchronization
     test_clock_synchronization.cpp
 )
