@@ -789,7 +789,15 @@ namespace ESPressio {
                         Internal::AbsoluteSignedValue(_pendingPhaseCorrectionNanoseconds) <=
                         _config.SynchronizationToleranceNanoseconds;
 
-                    status.State = enoughSamples && phaseSettled
+                    // The minimum-delay filter protects the servo against asymmetric queue excursions, but readiness
+                    // is a stronger claim than servo stability: the newest accepted exchange is the freshest direct
+                    // evidence of current phase. Do not report Synchronized when that residual itself lies outside the
+                    // configured tolerance even if an older lower-delay observation keeps filtered/pending phase small.
+                    const bool latestResidualWithinTolerance =
+                        Internal::AbsoluteSignedValue(_lastMeasuredOffsetNanoseconds) <=
+                        _config.SynchronizationToleranceNanoseconds;
+
+                    status.State = enoughSamples && phaseSettled && latestResidualWithinTolerance
                         ? ClockSynchronizationState::Synchronized
                         : ClockSynchronizationState::Acquiring;
 
