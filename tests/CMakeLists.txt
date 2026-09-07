@@ -95,6 +95,18 @@ target_include_directories(
 )
 
 add_executable(
+    test_clock_sample_validation
+    test_clock_sample_validation.cpp
+)
+
+target_include_directories(
+    test_clock_sample_validation
+    PRIVATE
+    ../src
+    ../test_support
+)
+
+add_executable(
     test_synchronized_system_clock
     test_synchronized_system_clock.cpp
 )
@@ -109,6 +121,11 @@ target_include_directories(
 add_test(
     NAME ClockSynchronization
     COMMAND test_clock_synchronization
+)
+
+add_test(
+    NAME ClockSampleValidation
+    COMMAND test_clock_sample_validation
 )
 
 add_test(
