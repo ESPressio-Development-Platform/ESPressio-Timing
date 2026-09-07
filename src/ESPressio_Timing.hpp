@@ -20,6 +20,7 @@
 #include "ESPressio_TimeSource.hpp"
 
 #include "ESPressio_Clock.hpp"
+#include "ESPressio_MonotonicClock.hpp"
 
 #include "ESPressio_ISystemClock.hpp"
 #include "ESPressio_SystemClock.hpp"
