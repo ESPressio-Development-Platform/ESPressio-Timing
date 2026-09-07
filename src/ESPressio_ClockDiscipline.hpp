@@ -277,6 +277,10 @@ namespace ESPressio {
                 uint32_t _acceptedSampleCount = 0;
                 uint32_t _rejectedSampleCount = 0;
 
+                // Synchronization readiness is scoped to the current continuous clock coordinate system. A hard phase
+                // step invalidates historical phase evidence even though lifetime diagnostic counters remain intact.
+                uint32_t _synchronizationEvidenceSampleCount = 0;
+
                 TTick _lastAcceptedSampleLocalTime = 0;
 
                 bool _hasPreviousDriftSample = false;
@@ -325,11 +329,6 @@ namespace ESPressio {
                         remoteProcessingElapsed >
                         localElapsed
                     ) {
-                        /*
-                         * A negative network round trip is not physically
-                         * meaningful and usually indicates malformed,
-                         * reordered, or mixed-exchange timestamps.
-                         */
                         return false;
                     }
 
@@ -339,33 +338,20 @@ namespace ESPressio {
 
                     const int64_t remoteReceiveMinusLocalSend =
                         Internal::SaturatingSignedDifference(
-                            static_cast<uint64_t>(
-                                sample.RemoteRequestReceiveTime
-                            ),
-                            static_cast<uint64_t>(
-                                sample.LocalRequestTransmitTime
-                            )
-                        );
+                            static_cast<uint64_t>(sample.RemoteRequestReceiveTime),
+                            static_cast<uint64_t>(sample.LocalRequestTransmitTime));
 
                     const int64_t remoteSendMinusLocalReceive =
                         Internal::SaturatingSignedDifference(
-                            static_cast<uint64_t>(
-                                sample.RemoteResponseTransmitTime
-                            ),
-                            static_cast<uint64_t>(
-                                sample.LocalResponseReceiveTime
-                            )
-                        );
+                            static_cast<uint64_t>(sample.RemoteResponseTransmitTime),
+                            static_cast<uint64_t>(sample.LocalResponseReceiveTime));
 
                     const int64_t summed =
                         Internal::SaturatingSignedAdd(
                             remoteReceiveMinusLocalSend,
-                            remoteSendMinusLocalReceive
-                        );
+                            remoteSendMinusLocalReceive);
 
-                    offsetNanoseconds =
-                        summed / 2;
-
+                    offsetNanoseconds = summed / 2;
                     return true;
                 }
 
@@ -374,56 +360,24 @@ namespace ESPressio {
                     int64_t measuredOffset
                 ) {
                     const double weight =
-                        Internal::NormalizeFilterWeight(
-                            _config.OffsetFilterWeight
-                        );
+                        Internal::NormalizeFilterWeight(_config.OffsetFilterWeight);
 
                     if (!_hasFilteredOffset) {
-                        _filteredOffsetNanoseconds =
-                            measuredOffset;
-
-                        _hasFilteredOffset =
-                            true;
-
+                        _filteredOffsetNanoseconds = measuredOffset;
+                        _hasFilteredOffset = true;
                         return;
                     }
 
                     const double filtered =
-                        (
-                            1.0 -
-                            weight
-                        ) *
-                            static_cast<double>(
-                                _filteredOffsetNanoseconds
-                            ) +
-                        weight *
-                            static_cast<double>(
-                                measuredOffset
-                            );
+                        (1.0 - weight) * static_cast<double>(_filteredOffsetNanoseconds) +
+                        weight * static_cast<double>(measuredOffset);
 
-                    if (
-                        filtered >=
-                        static_cast<double>(
-                            std::numeric_limits<int64_t>::max()
-                        )
-                    ) {
-                        _filteredOffsetNanoseconds =
-                            std::numeric_limits<int64_t>::max();
-                    } else if (
-                        filtered <=
-                        static_cast<double>(
-                            std::numeric_limits<int64_t>::min()
-                        )
-                    ) {
-                        _filteredOffsetNanoseconds =
-                            std::numeric_limits<int64_t>::min();
+                    if (filtered >= static_cast<double>(std::numeric_limits<int64_t>::max())) {
+                        _filteredOffsetNanoseconds = std::numeric_limits<int64_t>::max();
+                    } else if (filtered <= static_cast<double>(std::numeric_limits<int64_t>::min())) {
+                        _filteredOffsetNanoseconds = std::numeric_limits<int64_t>::min();
                     } else {
-                        _filteredOffsetNanoseconds =
-                            static_cast<int64_t>(
-                                std::llround(
-                                    filtered
-                                )
-                            );
+                        _filteredOffsetNanoseconds = static_cast<int64_t>(std::llround(filtered));
                     }
                 }
 
@@ -438,9 +392,7 @@ namespace ESPressio {
                             1,
                             std::min<uint8_t>(
                                 static_cast<uint8_t>(MaximumClockFilterSamples),
-                                _config.ClockFilterWindowSamples
-                            )
-                        );
+                                _config.ClockFilterWindowSamples));
 
                     const uint8_t insertedIndex = _clockFilterWriteIndex;
                     _clockFilter[insertedIndex] = {
@@ -448,15 +400,13 @@ namespace ESPressio {
                         roundTripDelay,
                         _appliedCorrectionNanoseconds
                     };
-                    _clockFilterWriteIndex =
-                        static_cast<uint8_t>((insertedIndex + 1U) % window);
+                    _clockFilterWriteIndex = static_cast<uint8_t>((insertedIndex + 1U) % window);
                     if (_clockFilterCount < window) ++_clockFilterCount;
 
                     uint8_t selectedIndex = insertedIndex;
                     uint64_t selectedDelay = roundTripDelay;
                     for (uint8_t index = 0; index < _clockFilterCount; ++index) {
                         const auto& candidate = _clockFilter[index];
-                        // Keep the just-inserted sample when delays are equal.
                         if (candidate.RoundTripDelayNanoseconds < selectedDelay) {
                             selectedDelay = candidate.RoundTripDelayNanoseconds;
                             selectedIndex = index;
@@ -468,12 +418,10 @@ namespace ESPressio {
                     const int64_t correctionSinceSample =
                         Internal::SaturatingSignedSubtract(
                             _appliedCorrectionNanoseconds,
-                            selected.AppliedCorrectionNanoseconds
-                        );
+                            selected.AppliedCorrectionNanoseconds);
                     return Internal::SaturatingSignedSubtract(
                         selected.OffsetNanoseconds,
-                        correctionSinceSample
-                    );
+                        correctionSinceSample);
                 }
 
 
@@ -482,122 +430,60 @@ namespace ESPressio {
                     int64_t measuredOffset
                 ) {
                     const uint64_t phaseThreshold =
-                        _config.
-                            DriftLearningPhaseThresholdNanoseconds;
+                        _config.DriftLearningPhaseThresholdNanoseconds;
 
                     if (
-                        Internal::AbsoluteSignedValue(
-                            _pendingPhaseCorrectionNanoseconds
-                        ) >
-                            phaseThreshold ||
-                        Internal::AbsoluteSignedValue(
-                            measuredOffset
-                        ) >
-                            phaseThreshold
+                        Internal::AbsoluteSignedValue(_pendingPhaseCorrectionNanoseconds) > phaseThreshold ||
+                        Internal::AbsoluteSignedValue(measuredOffset) > phaseThreshold
                     ) {
-                        _hasPreviousDriftSample =
-                            false;
-
+                        _hasPreviousDriftSample = false;
                         return;
                     }
 
                     if (!_hasPreviousDriftSample) {
-                        _previousDriftOffsetNanoseconds =
-                            measuredOffset;
-
-                        _previousDriftSampleLocalTime =
-                            localSampleTime;
-
-                        _hasPreviousDriftSample =
-                            true;
-
+                        _previousDriftOffsetNanoseconds = measuredOffset;
+                        _previousDriftSampleLocalTime = localSampleTime;
+                        _hasPreviousDriftSample = true;
                         return;
                     }
 
-                    if (
-                        localSampleTime <=
-                        _previousDriftSampleLocalTime
-                    ) {
-                        _hasPreviousDriftSample =
-                            false;
-
+                    if (localSampleTime <= _previousDriftSampleLocalTime) {
+                        _hasPreviousDriftSample = false;
                         return;
                     }
 
                     const uint64_t interval =
-                        static_cast<uint64_t>(
-                            localSampleTime -
-                            _previousDriftSampleLocalTime
-                        );
+                        static_cast<uint64_t>(localSampleTime - _previousDriftSampleLocalTime);
 
-                    if (
-                        interval <
-                        _config.
-                            MinimumDriftLearningIntervalNanoseconds
-                    ) {
-                        return;
-                    }
+                    if (interval < _config.MinimumDriftLearningIntervalNanoseconds) return;
 
                     const int64_t signedOffsetChange =
                         Internal::SaturatingSignedSubtract(
                             measuredOffset,
-                            _previousDriftOffsetNanoseconds
-                        );
+                            _previousDriftOffsetNanoseconds);
 
                     const double residualDriftPpm =
-                        (
-                            static_cast<double>(
-                                signedOffsetChange
-                            ) /
-                            static_cast<double>(
-                                interval
-                            )
-                        ) *
-                        1000000.0;
+                        (static_cast<double>(signedOffsetChange) /
+                         static_cast<double>(interval)) * 1000000.0;
 
-                    /*
-                     * The measured offset slope is the residual after the
-                     * rate correction already being applied. Add the current
-                     * correction back to estimate the underlying relative
-                     * clock-rate error.
-                     */
-                    double measuredDriftPpm =
-                        _estimatedDriftPpm +
-                        residualDriftPpm;
-
-                    measuredDriftPpm =
-                        Internal::ClampDriftPpm(
-                            measuredDriftPpm,
-                            _config.
-                                MaximumDriftCorrectionPpm
-                        );
+                    double measuredDriftPpm = _estimatedDriftPpm + residualDriftPpm;
+                    measuredDriftPpm = Internal::ClampDriftPpm(
+                        measuredDriftPpm,
+                        _config.MaximumDriftCorrectionPpm);
 
                     const double weight =
-                        Internal::NormalizeFilterWeight(
-                            _config.DriftFilterWeight
-                        );
+                        Internal::NormalizeFilterWeight(_config.DriftFilterWeight);
 
                     _estimatedDriftPpm =
-                        (
-                            1.0 -
-                            weight
-                        ) *
-                            _estimatedDriftPpm +
-                        weight *
-                            measuredDriftPpm;
+                        (1.0 - weight) * _estimatedDriftPpm +
+                        weight * measuredDriftPpm;
 
-                    _estimatedDriftPpm =
-                        Internal::ClampDriftPpm(
-                            _estimatedDriftPpm,
-                            _config.
-                                MaximumDriftCorrectionPpm
-                        );
+                    _estimatedDriftPpm = Internal::ClampDriftPpm(
+                        _estimatedDriftPpm,
+                        _config.MaximumDriftCorrectionPpm);
 
-                    _previousDriftOffsetNanoseconds =
-                        measuredOffset;
-
-                    _previousDriftSampleLocalTime =
-                        localSampleTime;
+                    _previousDriftOffsetNanoseconds = measuredOffset;
+                    _previousDriftSampleLocalTime = localSampleTime;
                 }
 
 
@@ -607,92 +493,49 @@ namespace ESPressio {
                 ) {
                     fractional += correction;
 
-                    if (
-                        fractional > -1.0 &&
-                        fractional < 1.0
-                    ) {
-                        return 0;
-                    }
+                    if (fractional > -1.0 && fractional < 1.0) return 0;
 
                     const double whole =
-                        fractional >= 0.0
-                            ? std::floor(
-                                fractional
-                              )
-                            : std::ceil(
-                                fractional
-                              );
+                        fractional >= 0.0 ? std::floor(fractional) : std::ceil(fractional);
 
                     fractional -= whole;
 
-                    if (
-                        whole >=
-                        static_cast<double>(
-                            std::numeric_limits<int64_t>::max()
-                        )
-                    ) {
-                        return
-                            std::numeric_limits<int64_t>::max();
+                    if (whole >= static_cast<double>(std::numeric_limits<int64_t>::max())) {
+                        return std::numeric_limits<int64_t>::max();
                     }
-
-                    if (
-                        whole <=
-                        static_cast<double>(
-                            std::numeric_limits<int64_t>::min()
-                        )
-                    ) {
-                        return
-                            std::numeric_limits<int64_t>::min();
+                    if (whole <= static_cast<double>(std::numeric_limits<int64_t>::min())) {
+                        return std::numeric_limits<int64_t>::min();
                     }
-
-                    return
-                        static_cast<int64_t>(
-                            whole
-                        );
+                    return static_cast<int64_t>(whole);
                 }
 
 
             public:
                 explicit ClockDiscipline(
-                    const ClockSynchronizationConfig& config =
-                        ClockSynchronizationConfig()
-                )
-                    : _config(config) {
-                    Configure(
-                        config
-                    );
+                    const ClockSynchronizationConfig& config = ClockSynchronizationConfig()
+                ) : _config(config) {
+                    Configure(config);
                 }
 
 
                 void Configure(
                     const ClockSynchronizationConfig& config
                 ) {
-                    const uint8_t previousClockFilterWindow =
-                        _config.ClockFilterWindowSamples;
+                    const uint8_t previousClockFilterWindow = _config.ClockFilterWindowSamples;
                     _config = config;
 
                     _config.MaximumSlewRatePpm =
-                        Internal::ClampSlewRatePpm(
-                            _config.MaximumSlewRatePpm
-                        );
+                        Internal::ClampSlewRatePpm(_config.MaximumSlewRatePpm);
 
                     _config.MaximumDriftCorrectionPpm =
-                        std::max(
-                            0.0,
-                            std::min(
-                                100000.0,
-                                _config.MaximumDriftCorrectionPpm
-                            )
-                        );
+                        std::max(0.0, std::min(100000.0, _config.MaximumDriftCorrectionPpm));
 
                     _config.ClockFilterWindowSamples =
                         std::max<uint8_t>(
                             1,
                             std::min<uint8_t>(
                                 static_cast<uint8_t>(MaximumClockFilterSamples),
-                                _config.ClockFilterWindowSamples
-                            )
-                        );
+                                _config.ClockFilterWindowSamples));
 
                     if (_config.ClockFilterWindowSamples != previousClockFilterWindow) {
                         _clockFilter = {};
@@ -702,145 +545,79 @@ namespace ESPressio {
                 }
 
 
-                const ClockSynchronizationConfig&
-                GetConfig() const {
+                const ClockSynchronizationConfig& GetConfig() const {
                     return _config;
                 }
 
 
-                void Reset(
-                    bool preserveConfiguration =
-                        true
-                ) {
-                    const ClockSynchronizationConfig
-                        configuration =
-                            _config;
-
-                    *this =
-                        ClockDiscipline<TTick>();
-
-                    if (preserveConfiguration) {
-                        Configure(
-                            configuration
-                        );
-                    }
+                void Reset(bool preserveConfiguration = true) {
+                    const ClockSynchronizationConfig configuration = _config;
+                    *this = ClockDiscipline<TTick>();
+                    if (preserveConfiguration) Configure(configuration);
                 }
 
 
-                ClockSynchronizationResult<TTick>
-                SubmitSample(
+                ClockSynchronizationResult<TTick> SubmitSample(
                     const ClockSynchronizationSample<TTick>& sample
                 ) {
-                    ClockSynchronizationResult<TTick>
-                        result;
+                    ClockSynchronizationResult<TTick> result;
 
                     int64_t measuredOffset = 0;
                     uint64_t roundTripDelay = 0;
 
                     if (
-                        !CalculateSample(
-                            sample,
-                            measuredOffset,
-                            roundTripDelay
-                        ) ||
-                        (
-                            _config.
-                                MaximumRoundTripDelayNanoseconds >
-                                0 &&
-                            roundTripDelay >
-                                _config.
-                                    MaximumRoundTripDelayNanoseconds
-                        )
+                        !CalculateSample(sample, measuredOffset, roundTripDelay) ||
+                        (_config.MaximumRoundTripDelayNanoseconds > 0 &&
+                         roundTripDelay > _config.MaximumRoundTripDelayNanoseconds)
                     ) {
                         ++_rejectedSampleCount;
-
-                        result.RejectedSampleCount =
-                            _rejectedSampleCount;
-
-                        result.AcceptedSampleCount =
-                            _acceptedSampleCount;
-
-                        result.EstimatedDriftPpm =
-                            _estimatedDriftPpm;
-
+                        result.RejectedSampleCount = _rejectedSampleCount;
+                        result.AcceptedSampleCount = _acceptedSampleCount;
+                        result.EstimatedDriftPpm = _estimatedDriftPpm;
                         return result;
                     }
 
-                    const bool phaseWasSettled =
-                        _pendingPhaseCorrectionNanoseconds ==
-                        0;
+                    const bool phaseWasSettled = _pendingPhaseCorrectionNanoseconds == 0;
 
                     bool currentSampleSelected = false;
                     const int64_t clockFilterOffset =
                         SelectMinimumDelayOffset(
                             measuredOffset,
                             roundTripDelay,
-                            currentSampleSelected
-                        );
+                            currentSampleSelected);
 
-                    /*
-                     * The minimum-delay stage rejects asymmetric queue/callback
-                     * residence excursions. Stored offsets are adjusted by the
-                     * correction applied since capture, so they remain residual
-                     * phase observations while the servo slews. Always retain
-                     * exponential filtering after the first sample; replacing it
-                     * merely because a correction is pending would re-enter
-                     * acquisition and chase each raw jitter observation.
-                     */
-                    if (
-                        !_hasFilteredOffset
-                    ) {
-                        _filteredOffsetNanoseconds =
-                            clockFilterOffset;
-
-                        _hasFilteredOffset =
-                            true;
+                    if (!_hasFilteredOffset) {
+                        _filteredOffsetNanoseconds = clockFilterOffset;
+                        _hasFilteredOffset = true;
                     } else {
-                        UpdateFilteredOffset(
-                            clockFilterOffset
-                        );
+                        UpdateFilteredOffset(clockFilterOffset);
                     }
 
                     if (phaseWasSettled && currentSampleSelected) {
-                        TryLearnDrift(
-                            sample.LocalResponseReceiveTime,
-                            clockFilterOffset
-                        );
+                        TryLearnDrift(sample.LocalResponseReceiveTime, clockFilterOffset);
                     } else {
-                        _hasPreviousDriftSample =
-                            false;
+                        _hasPreviousDriftSample = false;
                     }
 
-                    _lastMeasuredOffsetNanoseconds =
-                        measuredOffset;
-
-                    _lastRoundTripDelayNanoseconds =
-                        roundTripDelay;
-
-                    _lastAcceptedSampleLocalTime =
-                        sample.LocalResponseReceiveTime;
-
+                    _lastMeasuredOffsetNanoseconds = measuredOffset;
+                    _lastRoundTripDelayNanoseconds = roundTripDelay;
+                    _lastAcceptedSampleLocalTime = sample.LocalResponseReceiveTime;
                     _hasAcceptedSample = true;
 
                     ++_acceptedSampleCount;
+                    if (_synchronizationEvidenceSampleCount != std::numeric_limits<uint32_t>::max()) {
+                        ++_synchronizationEvidenceSampleCount;
+                    }
 
-                    _pendingPhaseCorrectionNanoseconds =
-                        _filteredOffsetNanoseconds;
+                    _pendingPhaseCorrectionNanoseconds = _filteredOffsetNanoseconds;
 
                     result.Accepted = true;
-                    result.MeasuredOffsetNanoseconds =
-                        measuredOffset;
-                    result.FilteredOffsetNanoseconds =
-                        _filteredOffsetNanoseconds;
-                    result.RoundTripDelayNanoseconds =
-                        roundTripDelay;
-                    result.EstimatedDriftPpm =
-                        _estimatedDriftPpm;
-                    result.AcceptedSampleCount =
-                        _acceptedSampleCount;
-                    result.RejectedSampleCount =
-                        _rejectedSampleCount;
-
+                    result.MeasuredOffsetNanoseconds = measuredOffset;
+                    result.FilteredOffsetNanoseconds = _filteredOffsetNanoseconds;
+                    result.RoundTripDelayNanoseconds = roundTripDelay;
+                    result.EstimatedDriftPpm = _estimatedDriftPpm;
+                    result.AcceptedSampleCount = _acceptedSampleCount;
+                    result.RejectedSampleCount = _rejectedSampleCount;
                     return result;
                 }
 
@@ -851,41 +628,42 @@ namespace ESPressio {
                     _appliedCorrectionNanoseconds =
                         Internal::SaturatingSignedAdd(
                             _appliedCorrectionNanoseconds,
-                            correctionNanoseconds
-                        );
+                            correctionNanoseconds);
 
-                    _pendingPhaseCorrectionNanoseconds =
-                        0;
+                    // A hard step changes the public clock coordinate system discontinuously. No historical phase
+                    // observation captured before the step may remain eligible for the post-step minimum-delay filter,
+                    // otherwise a stale pre-step sample can mask real multi-millisecond residual error for minutes.
+                    _clockFilter = {};
+                    _clockFilterCount = 0;
+                    _clockFilterWriteIndex = 0;
+                    _hasFilteredOffset = false;
 
-                    _filteredOffsetNanoseconds =
-                        0;
+                    _pendingPhaseCorrectionNanoseconds = 0;
+                    _filteredOffsetNanoseconds = 0;
+                    _lastMeasuredOffsetNanoseconds = 0;
+                    _phaseFractionNanoseconds = 0.0;
 
-                    _lastMeasuredOffsetNanoseconds =
-                        0;
-
-                    _phaseFractionNanoseconds =
-                        0.0;
+                    // Preserve lifetime accepted/rejected statistics, but reset readiness evidence to the step-causing
+                    // accepted sample. The next accepted post-step sample must therefore establish the first real
+                    // residual phase observation; with the default minimum of two samples it can immediately prevent a
+                    // false Synchronized state when the residual lies outside tolerance.
+                    _synchronizationEvidenceSampleCount = _hasAcceptedSample ? 1U : 0U;
 
                     if (_hasAcceptedSample) {
                         _lastAcceptedSampleLocalTime =
-                            Internal::
-                                ApplySignedTickCorrection(
-                                    _lastAcceptedSampleLocalTime,
-                                    correctionNanoseconds
-                                );
+                            Internal::ApplySignedTickCorrection(
+                                _lastAcceptedSampleLocalTime,
+                                correctionNanoseconds);
                     }
 
                     if (_hasPreviousDriftSample) {
                         _previousDriftSampleLocalTime =
-                            Internal::
-                                ApplySignedTickCorrection(
-                                    _previousDriftSampleLocalTime,
-                                    correctionNanoseconds
-                                );
+                            Internal::ApplySignedTickCorrection(
+                                _previousDriftSampleLocalTime,
+                                correctionNanoseconds);
                     }
 
-                    _hasPreviousDriftSample =
-                        false;
+                    _hasPreviousDriftSample = false;
                 }
 
 
@@ -893,249 +671,127 @@ namespace ESPressio {
                     TTick rawTime
                 ) {
                     if (!_advanceInitialized) {
-                        _lastAdvanceRawTime =
-                            rawTime;
-
-                        _advanceInitialized =
-                            true;
-
+                        _lastAdvanceRawTime = rawTime;
+                        _advanceInitialized = true;
                         return;
                     }
 
-                    if (
-                        rawTime <=
-                        _lastAdvanceRawTime
-                    ) {
-                        _lastAdvanceRawTime =
-                            rawTime;
-
+                    if (rawTime <= _lastAdvanceRawTime) {
+                        _lastAdvanceRawTime = rawTime;
                         return;
                     }
 
                     const uint64_t elapsed =
-                        static_cast<uint64_t>(
-                            rawTime -
-                            _lastAdvanceRawTime
-                        );
+                        static_cast<uint64_t>(rawTime - _lastAdvanceRawTime);
+                    _lastAdvanceRawTime = rawTime;
 
-                    _lastAdvanceRawTime =
-                        rawTime;
-
-                    /*
-                     * Continuous rate correction.
-                     */
                     const double frequencyCorrection =
-                        (
-                            static_cast<double>(
-                                elapsed
-                            ) *
-                            _estimatedDriftPpm
-                        ) /
-                        1000000.0;
-
+                        (static_cast<double>(elapsed) * _estimatedDriftPpm) / 1000000.0;
                     const int64_t wholeFrequencyCorrection =
-                        ConsumeWholeCorrection(
-                            _frequencyFractionNanoseconds,
-                            frequencyCorrection
-                        );
+                        ConsumeWholeCorrection(_frequencyFractionNanoseconds, frequencyCorrection);
 
-                    /*
-                     * Phase servo.
-                     */
                     int64_t wholePhaseCorrection = 0;
-
-                    if (
-                        _pendingPhaseCorrectionNanoseconds !=
-                        0 &&
-                        _config.MaximumSlewRatePpm >
-                        0
-                    ) {
+                    if (_pendingPhaseCorrectionNanoseconds != 0 && _config.MaximumSlewRatePpm > 0) {
                         const double maximumPhaseCorrection =
-                            (
-                                static_cast<double>(
-                                    elapsed
-                                ) *
-                                static_cast<double>(
-                                    Internal::ClampSlewRatePpm(
-                                        _config.MaximumSlewRatePpm
-                                    )
-                                )
-                            ) /
+                            (static_cast<double>(elapsed) *
+                             static_cast<double>(Internal::ClampSlewRatePpm(_config.MaximumSlewRatePpm))) /
                             1000000.0;
 
                         double desiredPhaseCorrection =
-                            _pendingPhaseCorrectionNanoseconds >
-                                0
+                            _pendingPhaseCorrectionNanoseconds > 0
                                 ? maximumPhaseCorrection
                                 : -maximumPhaseCorrection;
 
-                        if (
-                            std::fabs(
-                                desiredPhaseCorrection
-                            ) >
-                            static_cast<double>(
-                                Internal::AbsoluteSignedValue(
-                                    _pendingPhaseCorrectionNanoseconds
-                                )
-                            )
-                        ) {
+                        if (std::fabs(desiredPhaseCorrection) >
+                            static_cast<double>(Internal::AbsoluteSignedValue(
+                                _pendingPhaseCorrectionNanoseconds))) {
                             desiredPhaseCorrection =
-                                static_cast<double>(
-                                    _pendingPhaseCorrectionNanoseconds
-                                );
+                                static_cast<double>(_pendingPhaseCorrectionNanoseconds);
                         }
 
                         wholePhaseCorrection =
-                            ConsumeWholeCorrection(
-                                _phaseFractionNanoseconds,
-                                desiredPhaseCorrection
-                            );
+                            ConsumeWholeCorrection(_phaseFractionNanoseconds, desiredPhaseCorrection);
 
-                        if (
-                            wholePhaseCorrection != 0
-                        ) {
-                            if (
-                                (
-                                    _pendingPhaseCorrectionNanoseconds >
-                                        0 &&
-                                    wholePhaseCorrection >
-                                        _pendingPhaseCorrectionNanoseconds
-                                ) ||
-                                (
-                                    _pendingPhaseCorrectionNanoseconds <
-                                        0 &&
-                                    wholePhaseCorrection <
-                                        _pendingPhaseCorrectionNanoseconds
-                                )
-                            ) {
-                                wholePhaseCorrection =
-                                    _pendingPhaseCorrectionNanoseconds;
+                        if (wholePhaseCorrection != 0) {
+                            if ((_pendingPhaseCorrectionNanoseconds > 0 &&
+                                 wholePhaseCorrection > _pendingPhaseCorrectionNanoseconds) ||
+                                (_pendingPhaseCorrectionNanoseconds < 0 &&
+                                 wholePhaseCorrection < _pendingPhaseCorrectionNanoseconds)) {
+                                wholePhaseCorrection = _pendingPhaseCorrectionNanoseconds;
                             }
-
-                            _pendingPhaseCorrectionNanoseconds -=
-                                wholePhaseCorrection;
+                            _pendingPhaseCorrectionNanoseconds -= wholePhaseCorrection;
                         }
                     }
 
                     const int64_t totalCorrection =
                         Internal::SaturatingSignedAdd(
                             wholeFrequencyCorrection,
-                            wholePhaseCorrection
-                        );
-
+                            wholePhaseCorrection);
                     _appliedCorrectionNanoseconds =
                         Internal::SaturatingSignedAdd(
                             _appliedCorrectionNanoseconds,
-                            totalCorrection
-                        );
+                            totalCorrection);
                 }
 
 
-                int64_t
-                GetAppliedCorrectionNanoseconds() const {
-                    return
-                        _appliedCorrectionNanoseconds;
+                int64_t GetAppliedCorrectionNanoseconds() const {
+                    return _appliedCorrectionNanoseconds;
                 }
 
 
-                int64_t
-                GetPendingPhaseCorrectionNanoseconds() const {
-                    return
-                        _pendingPhaseCorrectionNanoseconds;
+                int64_t GetPendingPhaseCorrectionNanoseconds() const {
+                    return _pendingPhaseCorrectionNanoseconds;
                 }
 
 
                 double GetEstimatedDriftPpm() const {
-                    return
-                        _estimatedDriftPpm;
+                    return _estimatedDriftPpm;
                 }
 
 
-                ClockSynchronizationStatus<TTick>
-                GetStatus(
+                ClockSynchronizationStatus<TTick> GetStatus(
                     TTick currentLocalTime
                 ) const {
-                    ClockSynchronizationStatus<TTick>
-                        status;
+                    ClockSynchronizationStatus<TTick> status;
 
-                    status.LastMeasuredOffsetNanoseconds =
-                        _lastMeasuredOffsetNanoseconds;
-
-                    status.FilteredOffsetNanoseconds =
-                        _filteredOffsetNanoseconds;
-
-                    status.PendingPhaseCorrectionNanoseconds =
-                        _pendingPhaseCorrectionNanoseconds;
-
-                    status.AppliedCorrectionNanoseconds =
-                        _appliedCorrectionNanoseconds;
-
-                    status.LastRoundTripDelayNanoseconds =
-                        _lastRoundTripDelayNanoseconds;
-
-                    status.EstimatedDriftPpm =
-                        _estimatedDriftPpm;
-
-                    status.AcceptedSampleCount =
-                        _acceptedSampleCount;
-
-                    status.RejectedSampleCount =
-                        _rejectedSampleCount;
-
-                    status.LastAcceptedSampleLocalTime =
-                        _lastAcceptedSampleLocalTime;
-
-                    status.HasAcceptedSample =
-                        _hasAcceptedSample;
+                    status.LastMeasuredOffsetNanoseconds = _lastMeasuredOffsetNanoseconds;
+                    status.FilteredOffsetNanoseconds = _filteredOffsetNanoseconds;
+                    status.PendingPhaseCorrectionNanoseconds = _pendingPhaseCorrectionNanoseconds;
+                    status.AppliedCorrectionNanoseconds = _appliedCorrectionNanoseconds;
+                    status.LastRoundTripDelayNanoseconds = _lastRoundTripDelayNanoseconds;
+                    status.EstimatedDriftPpm = _estimatedDriftPpm;
+                    status.AcceptedSampleCount = _acceptedSampleCount;
+                    status.RejectedSampleCount = _rejectedSampleCount;
+                    status.LastAcceptedSampleLocalTime = _lastAcceptedSampleLocalTime;
+                    status.HasAcceptedSample = _hasAcceptedSample;
 
                     if (!_hasAcceptedSample) {
-                        status.State =
-                            ClockSynchronizationState::
-                                Unsynchronized;
-
+                        status.State = ClockSynchronizationState::Unsynchronized;
                         return status;
                     }
 
                     const bool stale =
-                        _config.
-                            MaximumSampleAgeNanoseconds >
-                            0 &&
-                        currentLocalTime >
-                            _lastAcceptedSampleLocalTime &&
-                        static_cast<uint64_t>(
-                            currentLocalTime -
-                            _lastAcceptedSampleLocalTime
-                        ) >
-                            _config.
-                                MaximumSampleAgeNanoseconds;
+                        _config.MaximumSampleAgeNanoseconds > 0 &&
+                        currentLocalTime > _lastAcceptedSampleLocalTime &&
+                        static_cast<uint64_t>(currentLocalTime - _lastAcceptedSampleLocalTime) >
+                            _config.MaximumSampleAgeNanoseconds;
 
                     if (stale) {
-                        status.State =
-                            ClockSynchronizationState::
-                                Unsynchronized;
-
+                        status.State = ClockSynchronizationState::Unsynchronized;
                         return status;
                     }
 
                     const bool enoughSamples =
-                        _acceptedSampleCount >=
-                        _config.
-                            MinimumSamplesForSynchronizedState;
+                        _synchronizationEvidenceSampleCount >=
+                        _config.MinimumSamplesForSynchronizedState;
 
                     const bool phaseSettled =
-                        Internal::AbsoluteSignedValue(
-                            _pendingPhaseCorrectionNanoseconds
-                        ) <=
-                        _config.
-                            SynchronizationToleranceNanoseconds;
+                        Internal::AbsoluteSignedValue(_pendingPhaseCorrectionNanoseconds) <=
+                        _config.SynchronizationToleranceNanoseconds;
 
-                    status.State =
-                        enoughSamples &&
-                        phaseSettled
-                            ? ClockSynchronizationState::
-                                Synchronized
-                            : ClockSynchronizationState::
-                                Acquiring;
+                    status.State = enoughSamples && phaseSettled
+                        ? ClockSynchronizationState::Synchronized
+                        : ClockSynchronizationState::Acquiring;
 
                     return status;
                 }
