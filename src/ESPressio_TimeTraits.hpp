@@ -15,11 +15,10 @@ namespace ESPressio {
 
 /**
  * ESPressio Memory Audit
- * Inherited Memory Total: sizeof(std::false_type) [0 bytes dynamic allocation]
- * Members: none (empty object still occupies at least 1 byte unless empty-base optimisation applies).
- * Total Memory: sizeof(std::false_type) [0 bytes dynamic allocation]
- * Basis: ESP32/Xtensa ILP32 reference ABI; GNU libstdc++ container control-block sizes are implementation-sensitive.
- * Confidence: low; compile-time sizeof on the concrete target remains authoritative for ABI-sensitive/opaque members.
+ * Inherited Memory Total: 1 bytes [0 bytes dynamic allocation]
+ * Members: none (standalone empty object occupies 1 byte; an eligible empty base may be optimized to 0 bytes).
+ * Total Memory: 1 bytes [0 bytes dynamic allocation]
+ * Basis: ESP32/Xtensa ILP32 reference ABI (4-byte pointers/size_t); ESPressio stateful allocators/deleters included; ABI-sensitive STL/platform internals are identified explicitly.
  * End ESPressio Memory Audit
  */
 template<typename...>
@@ -80,9 +79,9 @@ template<typename...>
         /// <remarks>The default specialization supports Unit-like values exposing <c>value</c>, <c>orderOfMagnitude</c>, and a matching value/magnitude constructor. Applications may specialize this trait for unrelated time types.</remarks>
 /**
  * ESPressio Memory Audit
- * Members: none (empty object still occupies at least 1 byte unless empty-base optimisation applies).
- * Total Memory: 0 bytes [0 bytes dynamic allocation]
- * Basis: ESP32/Xtensa ILP32 reference ABI; GNU libstdc++ container control-block sizes are implementation-sensitive.
+ * Members: none (standalone empty object occupies 1 byte; an eligible empty base may be optimized to 0 bytes).
+ * Total Memory: 1 bytes [0 bytes dynamic allocation]
+ * Basis: ESP32/Xtensa ILP32 reference ABI (4-byte pointers/size_t); ESPressio stateful allocators/deleters included; ABI-sensitive STL/platform internals are identified explicitly.
  * End ESPressio Memory Audit
  */
 template<typename TTime, typename TEnable = void>
@@ -97,7 +96,14 @@ template<typename TTime, typename TEnable = void>
 
 
         /// <summary>Default <c>TimeTraits</c> implementation for ESPressio Unit-compatible time representations.</summary>
-        template<typename TTime>
+                /**
+         * ESPressio Memory Audit
+         * Members: none (standalone empty object occupies 1 byte; an eligible empty base may be optimized to 0 bytes).
+         * Total Memory: 1 bytes [0 bytes dynamic allocation]
+         * Basis: ESP32/Xtensa ILP32 reference ABI (4-byte pointers/size_t); ESPressio stateful allocators/deleters included; ABI-sensitive STL/platform internals are identified explicitly.
+         * End ESPressio Memory Audit
+         */
+template<typename TTime>
         struct TimeTraits<
             TTime,
             std::void_t<

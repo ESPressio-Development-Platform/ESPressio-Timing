@@ -13,7 +13,7 @@ using namespace ESPressio::Timing;
  * Members:
  * - ticks (uint64_t): 8 bytes [0 bytes dynamic allocation]
  * Total Memory: 12 bytes [0 bytes dynamic allocation]
- * Basis: ESP32/Xtensa ILP32 reference ABI; GNU libstdc++ container control-block sizes are implementation-sensitive.
+ * Basis: ESP32/Xtensa ILP32 reference ABI (4-byte pointers/size_t); ESPressio stateful allocators/deleters included; ABI-sensitive STL/platform internals are identified explicitly.
  * End ESPressio Memory Audit
  */
 class ObserverFakeSource : public ITimeSource {
@@ -25,7 +25,7 @@ public:
 
 /**
  * ESPressio Memory Audit
- * Inherited Memory Total: sizeof(Observable::IObserver) + 4 bytes vptr [0 bytes dynamic allocation]
+ * Inherited Memory Total: 4 bytes [0 bytes dynamic allocation]
  * Members:
  * - setCount (int): 4 bytes [0 bytes dynamic allocation]
  * - acceptedCount (int): 4 bytes [0 bytes dynamic allocation]
@@ -39,9 +39,8 @@ public:
  * - before (uint64_t): 8 bytes [0 bytes dynamic allocation]
  * - after (uint64_t): 8 bytes [0 bytes dynamic allocation]
  * - diff (int64_t): 8 bytes [0 bytes dynamic allocation]
- * Total Memory: sizeof(Observable::IObserver) + 4 bytes vptr + 60 bytes known members [0 bytes dynamic allocation]
- * Basis: ESP32/Xtensa ILP32 reference ABI; GNU libstdc++ container control-block sizes are implementation-sensitive.
- * Confidence: low; compile-time sizeof on the concrete target remains authoritative for ABI-sensitive/opaque members.
+ * Total Memory: 64 bytes [0 bytes dynamic allocation]
+ * Basis: ESP32/Xtensa ILP32 reference ABI (4-byte pointers/size_t); ESPressio stateful allocators/deleters included; ABI-sensitive STL/platform internals are identified explicitly.
  * End ESPressio Memory Audit
  */
 class SystemObserver : public ISystemClockObserver<uint64_t> {
@@ -84,12 +83,11 @@ public:
 
 /**
  * ESPressio Memory Audit
- * Inherited Memory Total: sizeof(Observable::IObserver) + 4 bytes vptr [0 bytes dynamic allocation]
+ * Inherited Memory Total: 4 bytes [0 bytes dynamic allocation]
  * Members:
  * - starts (int): 4 bytes [0 bytes dynamic allocation]
- * Total Memory: sizeof(Observable::IObserver) + 4 bytes vptr + 4 bytes known members [0 bytes dynamic allocation]
- * Basis: ESP32/Xtensa ILP32 reference ABI; GNU libstdc++ container control-block sizes are implementation-sensitive.
- * Confidence: low; compile-time sizeof on the concrete target remains authoritative for ABI-sensitive/opaque members.
+ * Total Memory: 8 bytes [0 bytes dynamic allocation]
+ * Basis: ESP32/Xtensa ILP32 reference ABI (4-byte pointers/size_t); ESPressio stateful allocators/deleters included; ABI-sensitive STL/platform internals are identified explicitly.
  * End ESPressio Memory Audit
  */
 class StopwatchObserver : public IStopwatchClockObserver<DefaultClockTime, uint64_t> {
@@ -104,12 +102,13 @@ public:
 
 /**
  * ESPressio Memory Audit
- * Inherited Memory Total: sizeof(ClockBase<TTime, TTick>) + sizeof(IRTCClock<TTime>) + 1 bytes known members + sizeof(TTick) + sizeof(TTick) + sizeof(TTick) + sizeof(TLockPolicy::Mutex) + sizeof(TLockPolicy::Mutex) + 4 bytes vptr [0 bytes dynamic allocation]
+ * Inherited Memory Total: 24 bytes known/aligned storage + sizeof(TTick) + sizeof(TTick) + sizeof(TTick) [RTCClockBase: _observable: shared control block (~12+ bytes; allocate_shared may co-locate object) + object 20 bytes; RTCClockBase: _observable: pointee: ThreadSafeObservable: enable_shared_from_this: embedded weak_ptr shares a control block when activated; RTCClockBase: _observable: pointee: ThreadSafeObservable: mutex_: native synchronization state may allocate platform resources lazily]
  * Members:
  * - readSucceeds (bool): 1 bytes [0 bytes dynamic allocation]
  * - writeSucceeds (bool): 1 bytes [0 bytes dynamic allocation]
- * Total Memory: sizeof(ClockBase<TTime, TTick>) + sizeof(IRTCClock<TTime>) + 1 bytes known members + sizeof(TTick) + sizeof(TTick) + sizeof(TTick) + sizeof(TLockPolicy::Mutex) + sizeof(TLockPolicy::Mutex) + 4 bytes vptr + 2 bytes known members [0 bytes dynamic allocation]
- * Basis: ESP32/Xtensa ILP32 reference ABI; GNU libstdc++ container control-block sizes are implementation-sensitive.
+ * - stored (DefaultClockTime): 12 bytes [0 bytes dynamic allocation]
+ * Total Memory: 16 bytes known/aligned storage + 24 bytes known/aligned storage + sizeof(TTick) + sizeof(TTick) + sizeof(TTick) [RTCClockBase: _observable: shared control block (~12+ bytes; allocate_shared may co-locate object) + object 20 bytes; RTCClockBase: _observable: pointee: ThreadSafeObservable: enable_shared_from_this: embedded weak_ptr shares a control block when activated; RTCClockBase: _observable: pointee: ThreadSafeObservable: mutex_: native synchronization state may allocate platform resources lazily]
+ * Basis: ESP32/Xtensa ILP32 reference ABI (4-byte pointers/size_t); ESPressio stateful allocators/deleters included; ABI-sensitive STL/platform internals are identified explicitly.
  * Confidence: low; compile-time sizeof on the concrete target remains authoritative for ABI-sensitive/opaque members.
  * End ESPressio Memory Audit
  */
@@ -126,12 +125,11 @@ protected:
 
 /**
  * ESPressio Memory Audit
- * Inherited Memory Total: sizeof(Observable::IObserver) + 4 bytes vptr [0 bytes dynamic allocation]
+ * Inherited Memory Total: 4 bytes [0 bytes dynamic allocation]
  * Members:
  * - syncSuccess (int): 4 bytes [0 bytes dynamic allocation]
- * Total Memory: sizeof(Observable::IObserver) + 4 bytes vptr + 4 bytes known members [0 bytes dynamic allocation]
- * Basis: ESP32/Xtensa ILP32 reference ABI; GNU libstdc++ container control-block sizes are implementation-sensitive.
- * Confidence: low; compile-time sizeof on the concrete target remains authoritative for ABI-sensitive/opaque members.
+ * Total Memory: 8 bytes [0 bytes dynamic allocation]
+ * Basis: ESP32/Xtensa ILP32 reference ABI (4-byte pointers/size_t); ESPressio stateful allocators/deleters included; ABI-sensitive STL/platform internals are identified explicitly.
  * End ESPressio Memory Audit
  */
 class RTCObserver : public IRTCClockObserver<DefaultClockTime, uint64_t> {

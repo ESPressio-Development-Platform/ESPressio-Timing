@@ -61,10 +61,10 @@ namespace Timing {
  * ESPressio Memory Audit
  * Inherited Memory Total: 4 bytes [0 bytes dynamic allocation]
  * Members:
- * - _highResolutionCounter (#if ESPRESSIO_TIMING_USE_GPTIMER_BY_DEFAULT GPTimerTimeSource): sizeof(#if ESPRESSIO_TIMING_USE_GPTIMER_BY_DEFAULT GPTimerTimeSource) [0 bytes dynamic allocation]
- * Total Memory: 4 bytes known bases + sizeof(#if ESPRESSIO_TIMING_USE_GPTIMER_BY_DEFAULT GPTimerTimeSource) [0 bytes dynamic allocation]
- * Basis: ESP32/Xtensa ILP32 reference ABI; GNU libstdc++ container control-block sizes are implementation-sensitive.
- * Confidence: low; compile-time sizeof on the concrete target remains authoritative for ABI-sensitive/opaque members.
+ * - _highResolutionCounter (GPTimerTimeSource): 16 bytes [_counter: owned object: 4 bytes]
+ * Total Memory: 20 bytes [_highResolutionCounter: _counter: owned object: 4 bytes]
+ * Basis: ESP32/Xtensa ILP32 reference ABI (4-byte pointers/size_t); ESPressio stateful allocators/deleters included; ABI-sensitive STL/platform internals are identified explicitly.
+ * Confidence: medium; compile-time sizeof on the concrete target remains authoritative for ABI-sensitive/opaque members.
  * End ESPressio Memory Audit
  */
 template<typename TLockPolicy>

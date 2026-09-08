@@ -10,17 +10,17 @@
 namespace ESPressio { namespace Observable {
 /**
  * ESPressio Memory Audit
- * Members: none; polymorphic interface/object includes vptr storage where not supplied by a base.
+ * Members: none; polymorphic/virtual-base object metadata is included in the total.
  * Total Memory: 4 bytes [0 bytes dynamic allocation]
- * Basis: ESP32/Xtensa ILP32 reference ABI; GNU libstdc++ container control-block sizes are implementation-sensitive.
+ * Basis: ESP32/Xtensa ILP32 reference ABI (4-byte pointers/size_t); ESPressio stateful allocators/deleters included; ABI-sensitive STL/platform internals are identified explicitly.
  * End ESPressio Memory Audit
  */
 class IObservable { public: virtual ~IObservable() = default; };
 /**
  * ESPressio Memory Audit
- * Members: none; polymorphic interface/object includes vptr storage where not supplied by a base.
+ * Members: none; polymorphic/virtual-base object metadata is included in the total.
  * Total Memory: 4 bytes [0 bytes dynamic allocation]
- * Basis: ESP32/Xtensa ILP32 reference ABI; GNU libstdc++ container control-block sizes are implementation-sensitive.
+ * Basis: ESP32/Xtensa ILP32 reference ABI (4-byte pointers/size_t); ESPressio stateful allocators/deleters included; ABI-sensitive STL/platform internals are identified explicitly.
  * End ESPressio Memory Audit
  */
 class IObserverHandle { public: virtual ~IObserverHandle()=default; virtual void Unregister()=0; virtual IObserver* GetObserver()=0; };
@@ -33,7 +33,7 @@ class ThreadSafeObservable;
  * - owner_ (ThreadSafeObservable*): 4 bytes [0 bytes dynamic allocation]
  * - observer_ (IObserver*): 4 bytes [0 bytes dynamic allocation]
  * Total Memory: 12 bytes [0 bytes dynamic allocation]
- * Basis: ESP32/Xtensa ILP32 reference ABI; GNU libstdc++ container control-block sizes are implementation-sensitive.
+ * Basis: ESP32/Xtensa ILP32 reference ABI (4-byte pointers/size_t); ESPressio stateful allocators/deleters included; ABI-sensitive STL/platform internals are identified explicitly.
  * End ESPressio Memory Audit
  */
 class ObserverHandle final: public IObserverHandle {
@@ -47,13 +47,13 @@ public:
 };
 /**
  * ESPressio Memory Audit
- * Inherited Memory Total: sizeof(std::enable_shared_from_this<ThreadSafeObservable>) [0 bytes dynamic allocation]
+ * Inherited Memory Total: 12 bytes [enable_shared_from_this: embedded weak_ptr shares a control block when activated]
  * Members:
  * - observers_ (std::vector<ObserverHandle*>): 4 bytes [0 bytes dynamic allocation]
- * - mutex_ (std::recursive_mutex): sizeof(std::recursive_mutex) [0 bytes dynamic allocation]
- * Total Memory: 4 bytes known bases + sizeof(std::enable_shared_from_this<ThreadSafeObservable>) + 4 bytes known members + sizeof(std::recursive_mutex) [0 bytes dynamic allocation]
- * Basis: ESP32/Xtensa ILP32 reference ABI; GNU libstdc++ container control-block sizes are implementation-sensitive.
- * Confidence: low; compile-time sizeof on the concrete target remains authoritative for ABI-sensitive/opaque members.
+ * - mutex_ (std::recursive_mutex): 4 bytes [native synchronization state may allocate platform resources lazily]
+ * Total Memory: 20 bytes [enable_shared_from_this: embedded weak_ptr shares a control block when activated; mutex_: native synchronization state may allocate platform resources lazily]
+ * Basis: ESP32/Xtensa ILP32 reference ABI (4-byte pointers/size_t); ESPressio stateful allocators/deleters included; ABI-sensitive STL/platform internals are identified explicitly.
+ * Confidence: medium; compile-time sizeof on the concrete target remains authoritative for ABI-sensitive/opaque members.
  * End ESPressio Memory Audit
  */
 class ThreadSafeObservable: public IObservable, public std::enable_shared_from_this<ThreadSafeObservable> {
@@ -64,7 +64,7 @@ protected:
  * Members:
  * - o_ (ThreadSafeObservable&): 4 bytes [0 bytes dynamic allocation]
  * Total Memory: 4 bytes [0 bytes dynamic allocation]
- * Basis: ESP32/Xtensa ILP32 reference ABI; GNU libstdc++ container control-block sizes are implementation-sensitive.
+ * Basis: ESP32/Xtensa ILP32 reference ABI (4-byte pointers/size_t); ESPressio stateful allocators/deleters included; ABI-sensitive STL/platform internals are identified explicitly.
  * End ESPressio Memory Audit
  */
 class NotificationContext {

@@ -13,18 +13,10 @@ namespace ESPressio {
  * ESPressio Memory Audit
  * Underlying storage: 1 bytes
  * Total Memory: 1 bytes [0 bytes dynamic allocation]
- * Basis: ESP32/Xtensa ILP32 reference ABI; GNU libstdc++ container control-block sizes are implementation-sensitive.
+ * Basis: ESP32/Xtensa ILP32 reference ABI (4-byte pointers/size_t); ESPressio stateful allocators/deleters included; ABI-sensitive STL/platform internals are identified explicitly.
  * End ESPressio Memory Audit
  */
 enum
-/**
- * ESPressio Memory Audit
- * Inherited Memory Total: 1 bytes [0 bytes dynamic allocation]
- * Members: none (empty object still occupies at least 1 byte unless empty-base optimisation applies).
- * Total Memory: 1 bytes [0 bytes dynamic allocation]
- * Basis: ESP32/Xtensa ILP32 reference ABI; GNU libstdc++ container control-block sizes are implementation-sensitive.
- * End ESPressio Memory Audit
- */
 class ClockSynchronizationState : uint8_t {
             Unsynchronized,
             Acquiring,
@@ -37,18 +29,10 @@ class ClockSynchronizationState : uint8_t {
  * ESPressio Memory Audit
  * Underlying storage: 1 bytes
  * Total Memory: 1 bytes [0 bytes dynamic allocation]
- * Basis: ESP32/Xtensa ILP32 reference ABI; GNU libstdc++ container control-block sizes are implementation-sensitive.
+ * Basis: ESP32/Xtensa ILP32 reference ABI (4-byte pointers/size_t); ESPressio stateful allocators/deleters included; ABI-sensitive STL/platform internals are identified explicitly.
  * End ESPressio Memory Audit
  */
 enum
-/**
- * ESPressio Memory Audit
- * Inherited Memory Total: 1 bytes [0 bytes dynamic allocation]
- * Members: none (empty object still occupies at least 1 byte unless empty-base optimisation applies).
- * Total Memory: 1 bytes [0 bytes dynamic allocation]
- * Basis: ESP32/Xtensa ILP32 reference ABI; GNU libstdc++ container control-block sizes are implementation-sensitive.
- * End ESPressio Memory Audit
- */
 class ClockSynchronizationAdjustmentMode : uint8_t {
             /*
              * Never move the public System Clock discontinuously.
@@ -85,7 +69,7 @@ class ClockSynchronizationAdjustmentMode : uint8_t {
  * - RemoteResponseTransmitTime (TTick): sizeof(TTick) [0 bytes dynamic allocation]
  * - LocalResponseReceiveTime (TTick): sizeof(TTick) [0 bytes dynamic allocation]
  * Total Memory: sizeof(TTick) + sizeof(TTick) + sizeof(TTick) + sizeof(TTick) [0 bytes dynamic allocation]
- * Basis: ESP32/Xtensa ILP32 reference ABI; GNU libstdc++ container control-block sizes are implementation-sensitive.
+ * Basis: ESP32/Xtensa ILP32 reference ABI (4-byte pointers/size_t); ESPressio stateful allocators/deleters included; ABI-sensitive STL/platform internals are identified explicitly.
  * Confidence: low; compile-time sizeof on the concrete target remains authoritative for ABI-sensitive/opaque members.
  * End ESPressio Memory Audit
  */
@@ -116,18 +100,10 @@ template<typename TTick = ClockTick>
  * ESPressio Memory Audit
  * Underlying storage: 1 bytes
  * Total Memory: 1 bytes [0 bytes dynamic allocation]
- * Basis: ESP32/Xtensa ILP32 reference ABI; GNU libstdc++ container control-block sizes are implementation-sensitive.
+ * Basis: ESP32/Xtensa ILP32 reference ABI (4-byte pointers/size_t); ESPressio stateful allocators/deleters included; ABI-sensitive STL/platform internals are identified explicitly.
  * End ESPressio Memory Audit
  */
 enum
-/**
- * ESPressio Memory Audit
- * Inherited Memory Total: 1 bytes [0 bytes dynamic allocation]
- * Members: none (empty object still occupies at least 1 byte unless empty-base optimisation applies).
- * Total Memory: 1 bytes [0 bytes dynamic allocation]
- * Basis: ESP32/Xtensa ILP32 reference ABI; GNU libstdc++ container control-block sizes are implementation-sensitive.
- * End ESPressio Memory Audit
- */
 class ClockSynchronizationSampleRejectionReason : uint8_t {
             None = 0,
             InvalidTimestampOrder,
@@ -145,7 +121,7 @@ class ClockSynchronizationSampleRejectionReason : uint8_t {
  * - RemoteProcessingElapsedNanoseconds (uint64_t): 8 bytes [0 bytes dynamic allocation]
  * - RoundTripDelayNanoseconds (uint64_t): 8 bytes [0 bytes dynamic allocation]
  * Total Memory: 28 bytes [0 bytes dynamic allocation]
- * Basis: ESP32/Xtensa ILP32 reference ABI; GNU libstdc++ container control-block sizes are implementation-sensitive.
+ * Basis: ESP32/Xtensa ILP32 reference ABI (4-byte pointers/size_t); ESPressio stateful allocators/deleters included; ABI-sensitive STL/platform internals are identified explicitly.
  * End ESPressio Memory Audit
  */
 struct ClockSynchronizationSampleValidation final {
@@ -224,7 +200,7 @@ struct ClockSynchronizationSampleValidation final {
  * - MinimumSamplesForSynchronizedState (uint32_t): 4 bytes [0 bytes dynamic allocation]
  * - MaximumSampleAgeNanoseconds (uint64_t): 8 bytes [0 bytes dynamic allocation]
  * Total Memory: 76 bytes [0 bytes dynamic allocation]
- * Basis: ESP32/Xtensa ILP32 reference ABI; GNU libstdc++ container control-block sizes are implementation-sensitive.
+ * Basis: ESP32/Xtensa ILP32 reference ABI (4-byte pointers/size_t); ESPressio stateful allocators/deleters included; ABI-sensitive STL/platform internals are identified explicitly.
  * End ESPressio Memory Audit
  */
 struct ClockSynchronizationConfig {
@@ -316,7 +292,7 @@ struct ClockSynchronizationConfig {
  * - AcceptedSampleCount (uint32_t): 4 bytes [0 bytes dynamic allocation]
  * - RejectedSampleCount (uint32_t): 4 bytes [0 bytes dynamic allocation]
  * Total Memory: 44 bytes [0 bytes dynamic allocation]
- * Basis: ESP32/Xtensa ILP32 reference ABI; GNU libstdc++ container control-block sizes are implementation-sensitive.
+ * Basis: ESP32/Xtensa ILP32 reference ABI (4-byte pointers/size_t); ESPressio stateful allocators/deleters included; ABI-sensitive STL/platform internals are identified explicitly.
  * End ESPressio Memory Audit
  */
 template<typename TTick = ClockTick>
@@ -350,8 +326,8 @@ template<typename TTick = ClockTick>
  * - RejectedSampleCount (uint32_t): 4 bytes [0 bytes dynamic allocation]
  * - LastAcceptedSampleLocalTime (TTick): sizeof(TTick) [0 bytes dynamic allocation]
  * - HasAcceptedSample (bool): 1 bytes [0 bytes dynamic allocation]
- * Total Memory: 58 bytes known members + sizeof(TTick) [0 bytes dynamic allocation]
- * Basis: ESP32/Xtensa ILP32 reference ABI; GNU libstdc++ container control-block sizes are implementation-sensitive.
+ * Total Memory: 61 bytes known/aligned storage + sizeof(TTick) [0 bytes dynamic allocation]
+ * Basis: ESP32/Xtensa ILP32 reference ABI (4-byte pointers/size_t); ESPressio stateful allocators/deleters included; ABI-sensitive STL/platform internals are identified explicitly.
  * Confidence: low; compile-time sizeof on the concrete target remains authoritative for ABI-sensitive/opaque members.
  * End ESPressio Memory Audit
  */

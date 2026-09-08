@@ -27,9 +27,10 @@ namespace Timing {
  * ESPressio Memory Audit
  * Inherited Memory Total: 4 bytes [0 bytes dynamic allocation]
  * Members:
- * - _counter (std::unique_ptr<System::Clock::IHighResolutionCounter>): 4 bytes [owned object: sizeof(System::Clock::IHighResolutionCounter)]
- * Total Memory: 8 bytes [_counter: owned object: sizeof(System::Clock::IHighResolutionCounter)]
- * Basis: ESP32/Xtensa ILP32 reference ABI; GNU libstdc++ container control-block sizes are implementation-sensitive.
+ * - _counter (std::unique_ptr<System::Clock::IHighResolutionCounter>): 4 bytes [owned object: 4 bytes]
+ * - _initializationResult (System::PlatformResult): 8 bytes [0 bytes dynamic allocation]
+ * Total Memory: 16 bytes [_counter: owned object: 4 bytes]
+ * Basis: ESP32/Xtensa ILP32 reference ABI (4-byte pointers/size_t); ESPressio stateful allocators/deleters included; ABI-sensitive STL/platform internals are identified explicitly.
  * Confidence: medium; compile-time sizeof on the concrete target remains authoritative for ABI-sensitive/opaque members.
  * End ESPressio Memory Audit
  */

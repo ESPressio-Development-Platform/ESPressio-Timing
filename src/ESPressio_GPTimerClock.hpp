@@ -17,12 +17,12 @@ namespace Timing {
     /// <remarks>Availability and initialization status are exposed explicitly so applications can detect unsupported or failed GPTimer initialization.</remarks>
 /**
  * ESPressio Memory Audit
- * Inherited Memory Total: sizeof(IClockSettable<TTime>) + 4 bytes vptr [0 bytes dynamic allocation]
+ * Inherited Memory Total: 4 bytes [0 bytes dynamic allocation]
  * Members:
- * - _timeSource (GPTimerTimeSource): sizeof(ITimeSource) + 4 bytes known members [_counter: owned object: sizeof(System::Clock::IHighResolutionCounter)]
- * - _stopwatch (StopwatchClock<TTime, TLockPolicy, TTick>): sizeof(ClockBase<TTime, TTick>) + sizeof(IStopwatchClock<TTime>) + 1 bytes known members + sizeof(TLockPolicy::Mutex) + sizeof(TTick) + sizeof(TTick) [0 bytes dynamic allocation]
- * Total Memory: sizeof(IClockSettable<TTime>) + 4 bytes vptr + sizeof(ITimeSource) + 4 bytes known members + sizeof(ClockBase<TTime, TTick>) + sizeof(IStopwatchClock<TTime>) + 1 bytes known members + sizeof(TLockPolicy::Mutex) + sizeof(TTick) + sizeof(TTick) [_timeSource: _counter: owned object: sizeof(System::Clock::IHighResolutionCounter)]
- * Basis: ESP32/Xtensa ILP32 reference ABI; GNU libstdc++ container control-block sizes are implementation-sensitive.
+ * - _timeSource (GPTimerTimeSource): 16 bytes [_counter: owned object: 4 bytes]
+ * - _stopwatch (StopwatchClock<TTime, TLockPolicy, TTick>): 24 bytes known/aligned storage + sizeof(TTick) + sizeof(TTick) [_observable: shared control block (~12+ bytes; allocate_shared may co-locate object) + object 20 bytes; _observable: pointee: ThreadSafeObservable: enable_shared_from_this: embedded weak_ptr shares a control block when activated; _observable: pointee: ThreadSafeObservable: mutex_: native synchronization state may allocate platform resources lazily]
+ * Total Memory: 20 bytes known/aligned storage + 24 bytes known/aligned storage + sizeof(TTick) + sizeof(TTick) [_timeSource: _counter: owned object: 4 bytes; _stopwatch: _observable: shared control block (~12+ bytes; allocate_shared may co-locate object) + object 20 bytes; _stopwatch: _observable: pointee: ThreadSafeObservable: enable_shared_from_this: embedded weak_ptr shares a control block when activated; _stopwatch: _observable: pointee: ThreadSafeObservable: mutex_: native synchronization state may allocate platform resources lazily]
+ * Basis: ESP32/Xtensa ILP32 reference ABI (4-byte pointers/size_t); ESPressio stateful allocators/deleters included; ABI-sensitive STL/platform internals are identified explicitly.
  * Confidence: low; compile-time sizeof on the concrete target remains authoritative for ABI-sensitive/opaque members.
  * End ESPressio Memory Audit
  */

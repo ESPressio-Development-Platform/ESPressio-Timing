@@ -22,7 +22,7 @@ namespace ESPressio {
  * Members:
  * - _timeSource (ITimeSource*): 4 bytes [0 bytes dynamic allocation]
  * Total Memory: 8 bytes [0 bytes dynamic allocation]
- * Basis: ESP32/Xtensa ILP32 reference ABI; GNU libstdc++ container control-block sizes are implementation-sensitive.
+ * Basis: ESP32/Xtensa ILP32 reference ABI (4-byte pointers/size_t); ESPressio stateful allocators/deleters included; ABI-sensitive STL/platform internals are identified explicitly.
  * End ESPressio Memory Audit
  */
 template<
@@ -143,11 +143,11 @@ template<
  * ESPressio Memory Audit
  * Inherited Memory Total: 12 bytes [0 bytes dynamic allocation]
  * Members:
- * - _clockMutex (TLockPolicy::Mutex): 0 bytes [0 bytes dynamic allocation]
+ * - _clockMutex (TLockPolicy::Mutex): 1 bytes [0 bytes dynamic allocation]
  * - _baseTime (TTick): sizeof(TTick) [0 bytes dynamic allocation]
  * - _baseSourceTime (TTick): sizeof(TTick) [0 bytes dynamic allocation]
- * Total Memory: 12 bytes known bases + sizeof(TTick) + sizeof(TTick) [0 bytes dynamic allocation]
- * Basis: ESP32/Xtensa ILP32 reference ABI; GNU libstdc++ container control-block sizes are implementation-sensitive.
+ * Total Memory: 13 bytes known/aligned storage + sizeof(TTick) + sizeof(TTick) + virtual-base placement/padding per Itanium C++ ABI [0 bytes dynamic allocation]
+ * Basis: ESP32/Xtensa ILP32 reference ABI (4-byte pointers/size_t); ESPressio stateful allocators/deleters included; ABI-sensitive STL/platform internals are identified explicitly.
  * Confidence: low; compile-time sizeof on the concrete target remains authoritative for ABI-sensitive/opaque members.
  * End ESPressio Memory Audit
  */

@@ -256,6 +256,7 @@ namespace ESPressio {
  * - _config (ClockSynchronizationConfig): 76 bytes [0 bytes dynamic allocation]
  * - _hasAcceptedSample (bool): 1 bytes [0 bytes dynamic allocation]
  * - _hasFilteredOffset (bool): 1 bytes [0 bytes dynamic allocation]
+ * - _clockFilter (std::array<ClockFilterSample, MaximumClockFilterSamples>): 192 bytes [0 bytes dynamic allocation]
  * - _clockFilterCount (uint8_t): 1 bytes [0 bytes dynamic allocation]
  * - _clockFilterWriteIndex (uint8_t): 1 bytes [0 bytes dynamic allocation]
  * - _lastMeasuredOffsetNanoseconds (int64_t): 8 bytes [0 bytes dynamic allocation]
@@ -275,8 +276,8 @@ namespace ESPressio {
  * - _lastAdvanceRawTime (TTick): sizeof(TTick) [0 bytes dynamic allocation]
  * - _phaseFractionNanoseconds (double): 8 bytes [0 bytes dynamic allocation]
  * - _frequencyFractionNanoseconds (double): 8 bytes [0 bytes dynamic allocation]
- * Total Memory: 166 bytes known members + sizeof(TTick) + sizeof(TTick) + sizeof(TTick) [0 bytes dynamic allocation]
- * Basis: ESP32/Xtensa ILP32 reference ABI; GNU libstdc++ container control-block sizes are implementation-sensitive.
+ * Total Memory: 368 bytes known/aligned storage + sizeof(TTick) + sizeof(TTick) + sizeof(TTick) [0 bytes dynamic allocation]
+ * Basis: ESP32/Xtensa ILP32 reference ABI (4-byte pointers/size_t); ESPressio stateful allocators/deleters included; ABI-sensitive STL/platform internals are identified explicitly.
  * Confidence: low; compile-time sizeof on the concrete target remains authoritative for ABI-sensitive/opaque members.
  * End ESPressio Memory Audit
  */
@@ -296,7 +297,7 @@ template<typename TTick = ClockTick>
  * - RoundTripDelayNanoseconds (uint64_t): 8 bytes [0 bytes dynamic allocation]
  * - AppliedCorrectionNanoseconds (int64_t): 8 bytes [0 bytes dynamic allocation]
  * Total Memory: 24 bytes [0 bytes dynamic allocation]
- * Basis: ESP32/Xtensa ILP32 reference ABI; GNU libstdc++ container control-block sizes are implementation-sensitive.
+ * Basis: ESP32/Xtensa ILP32 reference ABI (4-byte pointers/size_t); ESPressio stateful allocators/deleters included; ABI-sensitive STL/platform internals are identified explicitly.
  * End ESPressio Memory Audit
  */
 struct ClockFilterSample {

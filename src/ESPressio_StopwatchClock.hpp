@@ -17,14 +17,15 @@ namespace Timing {
 /// <typeparam name="TLockPolicy">Synchronization policy protecting stopwatch state.</typeparam>
 /**
  * ESPressio Memory Audit
- * Inherited Memory Total: sizeof(IClock<TTime>) + 4 bytes known members + sizeof(IClockSettable<TTime>) + 4 bytes vptr [0 bytes dynamic allocation]
+ * Inherited Memory Total: 12 bytes [0 bytes dynamic allocation]
  * Members:
- * - _clockMutex (TLockPolicy::Mutex): 0 bytes [0 bytes dynamic allocation]
+ * - _clockMutex (TLockPolicy::Mutex): 1 bytes [0 bytes dynamic allocation]
  * - _elapsedTime (TTick): sizeof(TTick) [0 bytes dynamic allocation]
  * - _startTime (TTick): sizeof(TTick) [0 bytes dynamic allocation]
  * - _isRunning (bool): 1 bytes [0 bytes dynamic allocation]
- * Total Memory: sizeof(IClock<TTime>) + 4 bytes known members + sizeof(IClockSettable<TTime>) + 4 bytes vptr + 1 bytes known members + sizeof(TTick) + sizeof(TTick) [0 bytes dynamic allocation]
- * Basis: ESP32/Xtensa ILP32 reference ABI; GNU libstdc++ container control-block sizes are implementation-sensitive.
+ * - _observable (std::shared_ptr<TimingObservable>): 8 bytes [shared control block (~12+ bytes; allocate_shared may co-locate object) + object 20 bytes; pointee: ThreadSafeObservable: enable_shared_from_this: embedded weak_ptr shares a control block when activated; pointee: ThreadSafeObservable: mutex_: native synchronization state may allocate platform resources lazily]
+ * Total Memory: 24 bytes known/aligned storage + sizeof(TTick) + sizeof(TTick) [_observable: shared control block (~12+ bytes; allocate_shared may co-locate object) + object 20 bytes; _observable: pointee: ThreadSafeObservable: enable_shared_from_this: embedded weak_ptr shares a control block when activated; _observable: pointee: ThreadSafeObservable: mutex_: native synchronization state may allocate platform resources lazily]
+ * Basis: ESP32/Xtensa ILP32 reference ABI (4-byte pointers/size_t); ESPressio stateful allocators/deleters included; ABI-sensitive STL/platform internals are identified explicitly.
  * Confidence: low; compile-time sizeof on the concrete target remains authoritative for ABI-sensitive/opaque members.
  * End ESPressio Memory Audit
  */
