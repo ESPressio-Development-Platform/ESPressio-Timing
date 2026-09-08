@@ -23,10 +23,10 @@ namespace Timing {
  * - _sourceTime (TTick): sizeof(TTick) [0 bytes dynamic allocation]
  * - _rtcResolution (TTick): sizeof(TTick) [0 bytes dynamic allocation]
  * - _isSynchronized (bool): 1 bytes [0 bytes dynamic allocation]
- * - _stateMutex (TLockPolicy::Mutex): 1 bytes [0 bytes dynamic allocation]
- * - _rtcIOMutex (TLockPolicy::Mutex): 1 bytes [0 bytes dynamic allocation]
+ * - _stateMutex (TLockPolicy::Mutex): sizeof(TLockPolicy::Mutex) [0 bytes dynamic allocation]
+ * - _rtcIOMutex (TLockPolicy::Mutex): sizeof(TLockPolicy::Mutex) [0 bytes dynamic allocation]
  * - _observable (std::shared_ptr<TimingObservable>): 8 bytes [shared control block (~12+ bytes; allocate_shared may co-locate object) + object 20 bytes; pointee: ThreadSafeObservable: enable_shared_from_this: embedded weak_ptr shares a control block when activated; pointee: ThreadSafeObservable: mutex_: native synchronization state may allocate platform resources lazily]
- * Total Memory: 24 bytes known/aligned storage + sizeof(TTick) + sizeof(TTick) + sizeof(TTick) [_observable: shared control block (~12+ bytes; allocate_shared may co-locate object) + object 20 bytes; _observable: pointee: ThreadSafeObservable: enable_shared_from_this: embedded weak_ptr shares a control block when activated; _observable: pointee: ThreadSafeObservable: mutex_: native synchronization state may allocate platform resources lazily]
+ * Total Memory: 24 bytes known/aligned storage + sizeof(TTick) + sizeof(TTick) + sizeof(TTick) + sizeof(TLockPolicy::Mutex) + sizeof(TLockPolicy::Mutex) [_observable: shared control block (~12+ bytes; allocate_shared may co-locate object) + object 20 bytes; _observable: pointee: ThreadSafeObservable: enable_shared_from_this: embedded weak_ptr shares a control block when activated; _observable: pointee: ThreadSafeObservable: mutex_: native synchronization state may allocate platform resources lazily]
  * Basis: ESP32/Xtensa ILP32 reference ABI (4-byte pointers/size_t); ESPressio stateful allocators/deleters included; ABI-sensitive STL/platform internals are identified explicitly.
  * Confidence: low; compile-time sizeof on the concrete target remains authoritative for ABI-sensitive/opaque members.
  * End ESPressio Memory Audit
