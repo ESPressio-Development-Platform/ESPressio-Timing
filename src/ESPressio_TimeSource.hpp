@@ -57,7 +57,17 @@ namespace Timing {
     }
 
     /// <summary>Default monotonic time source preferring the configured high-resolution counter and falling back to the System platform clock.</summary>
-    template<typename TLockPolicy>
+/**
+ * ESPressio Memory Audit
+ * Inherited Memory Total: 4 bytes [0 bytes dynamic allocation]
+ * Members:
+ * - _highResolutionCounter (#if ESPRESSIO_TIMING_USE_GPTIMER_BY_DEFAULT GPTimerTimeSource): sizeof(#if ESPRESSIO_TIMING_USE_GPTIMER_BY_DEFAULT GPTimerTimeSource) [0 bytes dynamic allocation]
+ * Total Memory: 4 bytes known bases + sizeof(#if ESPRESSIO_TIMING_USE_GPTIMER_BY_DEFAULT GPTimerTimeSource) [0 bytes dynamic allocation]
+ * Basis: ESP32/Xtensa ILP32 reference ABI; GNU libstdc++ container control-block sizes are implementation-sensitive.
+ * Confidence: low; compile-time sizeof on the concrete target remains authoritative for ABI-sensitive/opaque members.
+ * End ESPressio Memory Audit
+ */
+template<typename TLockPolicy>
     class HighResolutionTimeSourceT : public ITimeSource {
     private:
 #if ESPRESSIO_TIMING_USE_GPTIMER_BY_DEFAULT

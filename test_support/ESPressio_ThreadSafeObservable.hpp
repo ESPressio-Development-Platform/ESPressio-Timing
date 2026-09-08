@@ -8,10 +8,34 @@
 #include <vector>
 #include "ESPressio_IObserver.hpp"
 namespace ESPressio { namespace Observable {
+/**
+ * ESPressio Memory Audit
+ * Members: none; polymorphic interface/object includes vptr storage where not supplied by a base.
+ * Total Memory: 4 bytes [0 bytes dynamic allocation]
+ * Basis: ESP32/Xtensa ILP32 reference ABI; GNU libstdc++ container control-block sizes are implementation-sensitive.
+ * End ESPressio Memory Audit
+ */
 class IObservable { public: virtual ~IObservable() = default; };
+/**
+ * ESPressio Memory Audit
+ * Members: none; polymorphic interface/object includes vptr storage where not supplied by a base.
+ * Total Memory: 4 bytes [0 bytes dynamic allocation]
+ * Basis: ESP32/Xtensa ILP32 reference ABI; GNU libstdc++ container control-block sizes are implementation-sensitive.
+ * End ESPressio Memory Audit
+ */
 class IObserverHandle { public: virtual ~IObserverHandle()=default; virtual void Unregister()=0; virtual IObserver* GetObserver()=0; };
 using ObserverHandlePtr=std::unique_ptr<IObserverHandle>;
 class ThreadSafeObservable;
+/**
+ * ESPressio Memory Audit
+ * Inherited Memory Total: 4 bytes [0 bytes dynamic allocation]
+ * Members:
+ * - owner_ (ThreadSafeObservable*): 4 bytes [0 bytes dynamic allocation]
+ * - observer_ (IObserver*): 4 bytes [0 bytes dynamic allocation]
+ * Total Memory: 12 bytes [0 bytes dynamic allocation]
+ * Basis: ESP32/Xtensa ILP32 reference ABI; GNU libstdc++ container control-block sizes are implementation-sensitive.
+ * End ESPressio Memory Audit
+ */
 class ObserverHandle final: public IObserverHandle {
     ThreadSafeObservable* owner_; IObserver* observer_;
 public:
@@ -21,10 +45,29 @@ public:
     IObserver* GetObserver() override { return observer_; }
     void Invalidate(){owner_=nullptr;observer_=nullptr;}
 };
+/**
+ * ESPressio Memory Audit
+ * Inherited Memory Total: sizeof(std::enable_shared_from_this<ThreadSafeObservable>) [0 bytes dynamic allocation]
+ * Members:
+ * - observers_ (std::vector<ObserverHandle*>): 4 bytes [0 bytes dynamic allocation]
+ * - mutex_ (std::recursive_mutex): sizeof(std::recursive_mutex) [0 bytes dynamic allocation]
+ * Total Memory: 4 bytes known bases + sizeof(std::enable_shared_from_this<ThreadSafeObservable>) + 4 bytes known members + sizeof(std::recursive_mutex) [0 bytes dynamic allocation]
+ * Basis: ESP32/Xtensa ILP32 reference ABI; GNU libstdc++ container control-block sizes are implementation-sensitive.
+ * Confidence: low; compile-time sizeof on the concrete target remains authoritative for ABI-sensitive/opaque members.
+ * End ESPressio Memory Audit
+ */
 class ThreadSafeObservable: public IObservable, public std::enable_shared_from_this<ThreadSafeObservable> {
     std::vector<ObserverHandle*> observers_; std::recursive_mutex mutex_;
 protected:
-    class NotificationContext {
+/**
+ * ESPressio Memory Audit
+ * Members:
+ * - o_ (ThreadSafeObservable&): 4 bytes [0 bytes dynamic allocation]
+ * Total Memory: 4 bytes [0 bytes dynamic allocation]
+ * Basis: ESP32/Xtensa ILP32 reference ABI; GNU libstdc++ container control-block sizes are implementation-sensitive.
+ * End ESPressio Memory Audit
+ */
+class NotificationContext {
         ThreadSafeObservable& o_;
     public:
         explicit NotificationContext(ThreadSafeObservable& o):o_(o){}

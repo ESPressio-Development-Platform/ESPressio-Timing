@@ -7,6 +7,15 @@
 using namespace ESPressio;
 using namespace ESPressio::Timing;
 
+/**
+ * ESPressio Memory Audit
+ * Inherited Memory Total: 4 bytes [0 bytes dynamic allocation]
+ * Members:
+ * - ticks (uint64_t): 8 bytes [0 bytes dynamic allocation]
+ * Total Memory: 12 bytes [0 bytes dynamic allocation]
+ * Basis: ESP32/Xtensa ILP32 reference ABI; GNU libstdc++ container control-block sizes are implementation-sensitive.
+ * End ESPressio Memory Audit
+ */
 class ObserverFakeSource : public ITimeSource {
 public:
     uint64_t ticks = 0;
@@ -14,6 +23,27 @@ public:
     uint64_t GetTicksPerSecond() const override { return 1000000000ULL; }
 };
 
+/**
+ * ESPressio Memory Audit
+ * Inherited Memory Total: sizeof(Observable::IObserver) + 4 bytes vptr [0 bytes dynamic allocation]
+ * Members:
+ * - setCount (int): 4 bytes [0 bytes dynamic allocation]
+ * - acceptedCount (int): 4 bytes [0 bytes dynamic allocation]
+ * - rejectedCount (int): 4 bytes [0 bytes dynamic allocation]
+ * - synchronizedCount (int): 4 bytes [0 bytes dynamic allocation]
+ * - stateChangedCount (int): 4 bytes [0 bytes dynamic allocation]
+ * - callbackScheduledCount (int): 4 bytes [0 bytes dynamic allocation]
+ * - callbackExecutedCount (int): 4 bytes [0 bytes dynamic allocation]
+ * - callbackFailedCount (int): 4 bytes [0 bytes dynamic allocation]
+ * - resetCount (int): 4 bytes [0 bytes dynamic allocation]
+ * - before (uint64_t): 8 bytes [0 bytes dynamic allocation]
+ * - after (uint64_t): 8 bytes [0 bytes dynamic allocation]
+ * - diff (int64_t): 8 bytes [0 bytes dynamic allocation]
+ * Total Memory: sizeof(Observable::IObserver) + 4 bytes vptr + 60 bytes known members [0 bytes dynamic allocation]
+ * Basis: ESP32/Xtensa ILP32 reference ABI; GNU libstdc++ container control-block sizes are implementation-sensitive.
+ * Confidence: low; compile-time sizeof on the concrete target remains authoritative for ABI-sensitive/opaque members.
+ * End ESPressio Memory Audit
+ */
 class SystemObserver : public ISystemClockObserver<uint64_t> {
 public:
     int setCount = 0;
@@ -52,6 +82,16 @@ public:
     void OnSystemClockCallbackExecutionFailed(uint64_t, uint64_t, int64_t, std::exception_ptr) override { ++callbackFailedCount; }
 };
 
+/**
+ * ESPressio Memory Audit
+ * Inherited Memory Total: sizeof(Observable::IObserver) + 4 bytes vptr [0 bytes dynamic allocation]
+ * Members:
+ * - starts (int): 4 bytes [0 bytes dynamic allocation]
+ * Total Memory: sizeof(Observable::IObserver) + 4 bytes vptr + 4 bytes known members [0 bytes dynamic allocation]
+ * Basis: ESP32/Xtensa ILP32 reference ABI; GNU libstdc++ container control-block sizes are implementation-sensitive.
+ * Confidence: low; compile-time sizeof on the concrete target remains authoritative for ABI-sensitive/opaque members.
+ * End ESPressio Memory Audit
+ */
 class StopwatchObserver : public IStopwatchClockObserver<DefaultClockTime, uint64_t> {
 public:
     int starts=0, stops=0, resets=0, restarts=0, sets=0;
@@ -62,6 +102,17 @@ public:
     void OnStopwatchTimeSet(uint64_t, uint64_t, int64_t, bool) override { ++sets; }
 };
 
+/**
+ * ESPressio Memory Audit
+ * Inherited Memory Total: sizeof(ClockBase<TTime, TTick>) + sizeof(IRTCClock<TTime>) + 1 bytes known members + sizeof(TTick) + sizeof(TTick) + sizeof(TTick) + sizeof(TLockPolicy::Mutex) + sizeof(TLockPolicy::Mutex) + 4 bytes vptr [0 bytes dynamic allocation]
+ * Members:
+ * - readSucceeds (bool): 1 bytes [0 bytes dynamic allocation]
+ * - writeSucceeds (bool): 1 bytes [0 bytes dynamic allocation]
+ * Total Memory: sizeof(ClockBase<TTime, TTick>) + sizeof(IRTCClock<TTime>) + 1 bytes known members + sizeof(TTick) + sizeof(TTick) + sizeof(TTick) + sizeof(TLockPolicy::Mutex) + sizeof(TLockPolicy::Mutex) + 4 bytes vptr + 2 bytes known members [0 bytes dynamic allocation]
+ * Basis: ESP32/Xtensa ILP32 reference ABI; GNU libstdc++ container control-block sizes are implementation-sensitive.
+ * Confidence: low; compile-time sizeof on the concrete target remains authoritative for ABI-sensitive/opaque members.
+ * End ESPressio Memory Audit
+ */
 class ObserverRTC : public RTCClockBase<DefaultClockTime, NoLockPolicy> {
 public:
     bool readSucceeds=true;
@@ -73,6 +124,16 @@ protected:
     bool WriteRTC(const DefaultClockTime& t) override { if(!writeSucceeds) return false; stored=t; return true; }
 };
 
+/**
+ * ESPressio Memory Audit
+ * Inherited Memory Total: sizeof(Observable::IObserver) + 4 bytes vptr [0 bytes dynamic allocation]
+ * Members:
+ * - syncSuccess (int): 4 bytes [0 bytes dynamic allocation]
+ * Total Memory: sizeof(Observable::IObserver) + 4 bytes vptr + 4 bytes known members [0 bytes dynamic allocation]
+ * Basis: ESP32/Xtensa ILP32 reference ABI; GNU libstdc++ container control-block sizes are implementation-sensitive.
+ * Confidence: low; compile-time sizeof on the concrete target remains authoritative for ABI-sensitive/opaque members.
+ * End ESPressio Memory Audit
+ */
 class RTCObserver : public IRTCClockObserver<DefaultClockTime, uint64_t> {
 public:
     int syncSuccess=0, syncFail=0, interrupts=0, timeInterrupts=0, writeSuccess=0, writeFail=0;

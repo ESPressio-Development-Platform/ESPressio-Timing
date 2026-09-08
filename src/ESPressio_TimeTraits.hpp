@@ -13,7 +13,16 @@ namespace ESPressio {
 
         namespace Internal {
 
-            template<typename...>
+/**
+ * ESPressio Memory Audit
+ * Inherited Memory Total: sizeof(std::false_type) [0 bytes dynamic allocation]
+ * Members: none (empty object still occupies at least 1 byte unless empty-base optimisation applies).
+ * Total Memory: sizeof(std::false_type) [0 bytes dynamic allocation]
+ * Basis: ESP32/Xtensa ILP32 reference ABI; GNU libstdc++ container control-block sizes are implementation-sensitive.
+ * Confidence: low; compile-time sizeof on the concrete target remains authoritative for ABI-sensitive/opaque members.
+ * End ESPressio Memory Audit
+ */
+template<typename...>
             struct DependentFalse : std::false_type {
             };
 
@@ -69,7 +78,14 @@ namespace ESPressio {
         /// <summary>Customization point connecting a public clock-time representation to Timing's canonical nanosecond tick domain.</summary>
         /// <typeparam name="TTime">Public time representation.</typeparam>
         /// <remarks>The default specialization supports Unit-like values exposing <c>value</c>, <c>orderOfMagnitude</c>, and a matching value/magnitude constructor. Applications may specialize this trait for unrelated time types.</remarks>
-        template<typename TTime, typename TEnable = void>
+/**
+ * ESPressio Memory Audit
+ * Members: none (empty object still occupies at least 1 byte unless empty-base optimisation applies).
+ * Total Memory: 0 bytes [0 bytes dynamic allocation]
+ * Basis: ESP32/Xtensa ILP32 reference ABI; GNU libstdc++ container control-block sizes are implementation-sensitive.
+ * End ESPressio Memory Audit
+ */
+template<typename TTime, typename TEnable = void>
         struct TimeTraits {
             static_assert(
                 Internal::DependentFalse<TTime>::value,

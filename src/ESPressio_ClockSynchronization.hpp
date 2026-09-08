@@ -9,7 +9,23 @@ namespace ESPressio {
     namespace Timing {
 
         /// <summary>High-level acquisition state of a disciplined clock.</summary>
-        enum class ClockSynchronizationState : uint8_t {
+/**
+ * ESPressio Memory Audit
+ * Underlying storage: 1 bytes
+ * Total Memory: 1 bytes [0 bytes dynamic allocation]
+ * Basis: ESP32/Xtensa ILP32 reference ABI; GNU libstdc++ container control-block sizes are implementation-sensitive.
+ * End ESPressio Memory Audit
+ */
+enum
+/**
+ * ESPressio Memory Audit
+ * Inherited Memory Total: 1 bytes [0 bytes dynamic allocation]
+ * Members: none (empty object still occupies at least 1 byte unless empty-base optimisation applies).
+ * Total Memory: 1 bytes [0 bytes dynamic allocation]
+ * Basis: ESP32/Xtensa ILP32 reference ABI; GNU libstdc++ container control-block sizes are implementation-sensitive.
+ * End ESPressio Memory Audit
+ */
+class ClockSynchronizationState : uint8_t {
             Unsynchronized,
             Acquiring,
             Synchronized
@@ -17,7 +33,23 @@ namespace ESPressio {
 
 
         /// <summary>Controls whether synchronization corrects phase by slewing, startup stepping, or unconditional stepping.</summary>
-        enum class ClockSynchronizationAdjustmentMode : uint8_t {
+/**
+ * ESPressio Memory Audit
+ * Underlying storage: 1 bytes
+ * Total Memory: 1 bytes [0 bytes dynamic allocation]
+ * Basis: ESP32/Xtensa ILP32 reference ABI; GNU libstdc++ container control-block sizes are implementation-sensitive.
+ * End ESPressio Memory Audit
+ */
+enum
+/**
+ * ESPressio Memory Audit
+ * Inherited Memory Total: 1 bytes [0 bytes dynamic allocation]
+ * Members: none (empty object still occupies at least 1 byte unless empty-base optimisation applies).
+ * Total Memory: 1 bytes [0 bytes dynamic allocation]
+ * Basis: ESP32/Xtensa ILP32 reference ABI; GNU libstdc++ container control-block sizes are implementation-sensitive.
+ * End ESPressio Memory Audit
+ */
+class ClockSynchronizationAdjustmentMode : uint8_t {
             /*
              * Never move the public System Clock discontinuously.
              * Phase error is corrected by slewing.
@@ -45,7 +77,19 @@ namespace ESPressio {
 
         /// <summary>Four timestamps captured during a two-way clock synchronization exchange.</summary>
         /// <typeparam name="TTick">Raw timestamp type used by the synchronization transport.</typeparam>
-        template<typename TTick = ClockTick>
+/**
+ * ESPressio Memory Audit
+ * Members:
+ * - LocalRequestTransmitTime (TTick): sizeof(TTick) [0 bytes dynamic allocation]
+ * - RemoteRequestReceiveTime (TTick): sizeof(TTick) [0 bytes dynamic allocation]
+ * - RemoteResponseTransmitTime (TTick): sizeof(TTick) [0 bytes dynamic allocation]
+ * - LocalResponseReceiveTime (TTick): sizeof(TTick) [0 bytes dynamic allocation]
+ * Total Memory: sizeof(TTick) + sizeof(TTick) + sizeof(TTick) + sizeof(TTick) [0 bytes dynamic allocation]
+ * Basis: ESP32/Xtensa ILP32 reference ABI; GNU libstdc++ container control-block sizes are implementation-sensitive.
+ * Confidence: low; compile-time sizeof on the concrete target remains authoritative for ABI-sensitive/opaque members.
+ * End ESPressio Memory Audit
+ */
+template<typename TTick = ClockTick>
         struct ClockSynchronizationSample {
             /*
              * Four timestamps from a two-way synchronization exchange:
@@ -68,7 +112,23 @@ namespace ESPressio {
 
 
         /// <summary>Canonical Timing-owned reason that a four-timestamp sample cannot enter clock discipline.</summary>
-        enum class ClockSynchronizationSampleRejectionReason : uint8_t {
+/**
+ * ESPressio Memory Audit
+ * Underlying storage: 1 bytes
+ * Total Memory: 1 bytes [0 bytes dynamic allocation]
+ * Basis: ESP32/Xtensa ILP32 reference ABI; GNU libstdc++ container control-block sizes are implementation-sensitive.
+ * End ESPressio Memory Audit
+ */
+enum
+/**
+ * ESPressio Memory Audit
+ * Inherited Memory Total: 1 bytes [0 bytes dynamic allocation]
+ * Members: none (empty object still occupies at least 1 byte unless empty-base optimisation applies).
+ * Total Memory: 1 bytes [0 bytes dynamic allocation]
+ * Basis: ESP32/Xtensa ILP32 reference ABI; GNU libstdc++ container control-block sizes are implementation-sensitive.
+ * End ESPressio Memory Audit
+ */
+class ClockSynchronizationSampleRejectionReason : uint8_t {
             None = 0,
             InvalidTimestampOrder,
             RemoteProcessingExceedsLocalElapsed,
@@ -77,7 +137,18 @@ namespace ESPressio {
 
 
         /// <summary>Transport-neutral validation evidence for one four-timestamp synchronization sample.</summary>
-        struct ClockSynchronizationSampleValidation final {
+/**
+ * ESPressio Memory Audit
+ * Members:
+ * - RejectionReason (ClockSynchronizationSampleRejectionReason): 1 bytes [0 bytes dynamic allocation]
+ * - LocalElapsedNanoseconds (uint64_t): 8 bytes [0 bytes dynamic allocation]
+ * - RemoteProcessingElapsedNanoseconds (uint64_t): 8 bytes [0 bytes dynamic allocation]
+ * - RoundTripDelayNanoseconds (uint64_t): 8 bytes [0 bytes dynamic allocation]
+ * Total Memory: 28 bytes [0 bytes dynamic allocation]
+ * Basis: ESP32/Xtensa ILP32 reference ABI; GNU libstdc++ container control-block sizes are implementation-sensitive.
+ * End ESPressio Memory Audit
+ */
+struct ClockSynchronizationSampleValidation final {
             ClockSynchronizationSampleRejectionReason RejectionReason =
                 ClockSynchronizationSampleRejectionReason::None;
             uint64_t LocalElapsedNanoseconds = 0;
@@ -138,7 +209,25 @@ namespace ESPressio {
 
 
         /// <summary>Filtering, delay-rejection, slew, drift-learning, and synchronization-state configuration.</summary>
-        struct ClockSynchronizationConfig {
+/**
+ * ESPressio Memory Audit
+ * Members:
+ * - MaximumRoundTripDelayNanoseconds (uint64_t): 8 bytes [0 bytes dynamic allocation]
+ * - MaximumSlewRatePpm (uint32_t): 4 bytes [0 bytes dynamic allocation]
+ * - MaximumDriftCorrectionPpm (double): 8 bytes [0 bytes dynamic allocation]
+ * - OffsetFilterWeight (double): 8 bytes [0 bytes dynamic allocation]
+ * - ClockFilterWindowSamples (uint8_t): 1 bytes [0 bytes dynamic allocation]
+ * - DriftFilterWeight (double): 8 bytes [0 bytes dynamic allocation]
+ * - DriftLearningPhaseThresholdNanoseconds (uint64_t): 8 bytes [0 bytes dynamic allocation]
+ * - MinimumDriftLearningIntervalNanoseconds (uint64_t): 8 bytes [0 bytes dynamic allocation]
+ * - SynchronizationToleranceNanoseconds (uint64_t): 8 bytes [0 bytes dynamic allocation]
+ * - MinimumSamplesForSynchronizedState (uint32_t): 4 bytes [0 bytes dynamic allocation]
+ * - MaximumSampleAgeNanoseconds (uint64_t): 8 bytes [0 bytes dynamic allocation]
+ * Total Memory: 76 bytes [0 bytes dynamic allocation]
+ * Basis: ESP32/Xtensa ILP32 reference ABI; GNU libstdc++ container control-block sizes are implementation-sensitive.
+ * End ESPressio Memory Audit
+ */
+struct ClockSynchronizationConfig {
             /*
              * Samples exceeding this measured network round-trip delay are
              * rejected. Zero disables the limit.
@@ -216,7 +305,21 @@ namespace ESPressio {
 
 
         /// <summary>Outcome and current estimates produced when one synchronization sample is submitted.</summary>
-        template<typename TTick = ClockTick>
+/**
+ * ESPressio Memory Audit
+ * Members:
+ * - Accepted (bool): 1 bytes [0 bytes dynamic allocation]
+ * - MeasuredOffsetNanoseconds (int64_t): 8 bytes [0 bytes dynamic allocation]
+ * - FilteredOffsetNanoseconds (int64_t): 8 bytes [0 bytes dynamic allocation]
+ * - RoundTripDelayNanoseconds (uint64_t): 8 bytes [0 bytes dynamic allocation]
+ * - EstimatedDriftPpm (double): 8 bytes [0 bytes dynamic allocation]
+ * - AcceptedSampleCount (uint32_t): 4 bytes [0 bytes dynamic allocation]
+ * - RejectedSampleCount (uint32_t): 4 bytes [0 bytes dynamic allocation]
+ * Total Memory: 44 bytes [0 bytes dynamic allocation]
+ * Basis: ESP32/Xtensa ILP32 reference ABI; GNU libstdc++ container control-block sizes are implementation-sensitive.
+ * End ESPressio Memory Audit
+ */
+template<typename TTick = ClockTick>
         struct ClockSynchronizationResult {
             bool Accepted = false;
 
@@ -233,7 +336,26 @@ namespace ESPressio {
 
 
         /// <summary>Snapshot of synchronization state, phase correction, delay, drift, and sample counters.</summary>
-        template<typename TTick = ClockTick>
+/**
+ * ESPressio Memory Audit
+ * Members:
+ * - State (ClockSynchronizationState): 1 bytes [0 bytes dynamic allocation]
+ * - LastMeasuredOffsetNanoseconds (int64_t): 8 bytes [0 bytes dynamic allocation]
+ * - FilteredOffsetNanoseconds (int64_t): 8 bytes [0 bytes dynamic allocation]
+ * - PendingPhaseCorrectionNanoseconds (int64_t): 8 bytes [0 bytes dynamic allocation]
+ * - AppliedCorrectionNanoseconds (int64_t): 8 bytes [0 bytes dynamic allocation]
+ * - LastRoundTripDelayNanoseconds (uint64_t): 8 bytes [0 bytes dynamic allocation]
+ * - EstimatedDriftPpm (double): 8 bytes [0 bytes dynamic allocation]
+ * - AcceptedSampleCount (uint32_t): 4 bytes [0 bytes dynamic allocation]
+ * - RejectedSampleCount (uint32_t): 4 bytes [0 bytes dynamic allocation]
+ * - LastAcceptedSampleLocalTime (TTick): sizeof(TTick) [0 bytes dynamic allocation]
+ * - HasAcceptedSample (bool): 1 bytes [0 bytes dynamic allocation]
+ * Total Memory: 58 bytes known members + sizeof(TTick) [0 bytes dynamic allocation]
+ * Basis: ESP32/Xtensa ILP32 reference ABI; GNU libstdc++ container control-block sizes are implementation-sensitive.
+ * Confidence: low; compile-time sizeof on the concrete target remains authoritative for ABI-sensitive/opaque members.
+ * End ESPressio Memory Audit
+ */
+template<typename TTick = ClockTick>
         struct ClockSynchronizationStatus {
             ClockSynchronizationState State =
                 ClockSynchronizationState::Unsynchronized;

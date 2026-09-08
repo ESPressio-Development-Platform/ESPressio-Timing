@@ -36,7 +36,23 @@ namespace ESPressio {
          * Public Unit/Serializable representations never live here; the core
          * stores only raw nanosecond ticks and the global callback scheduler.
          */
-        template<
+/**
+ * ESPressio Memory Audit
+ * Members:
+ * - _timeSource (ITimeSource*): 4 bytes [0 bytes dynamic allocation]
+ * - _clockMutex (TLockPolicy::Mutex): 0 bytes [0 bytes dynamic allocation]
+ * - _callbacksMutex (TLockPolicy::Mutex): 0 bytes [0 bytes dynamic allocation]
+ * - _baseTime (TTick): sizeof(TTick) [0 bytes dynamic allocation]
+ * - _baseSourceTime (TTick): sizeof(TTick) [0 bytes dynamic allocation]
+ * - _discipline (ClockDiscipline<TTick>): 90 bytes known members + sizeof(ClockSynchronizationConfig) + sizeof(TTick) + sizeof(TTick) + sizeof(TTick) [0 bytes dynamic allocation]
+ * - _lastNotifiedSynchronizationState (ClockSynchronizationState): 1 bytes [0 bytes dynamic allocation]
+ * - _callbacks (ScheduledCallback[ ESPRESSIO_TIMING_MAX_CALLBACKS ]): ESPRESSIO_TIMING_MAX_CALLBACKS  * sizeof(TTick) + sizeof(ClockCallback) [0 bytes dynamic allocation]
+ * Total Memory: 5 bytes known members + sizeof(TTick) + sizeof(TTick) + 90 bytes known members + sizeof(ClockSynchronizationConfig) + sizeof(TTick) + sizeof(TTick) + sizeof(TTick) + ESPRESSIO_TIMING_MAX_CALLBACKS  * sizeof(TTick) + sizeof(ClockCallback) [0 bytes dynamic allocation]
+ * Basis: ESP32/Xtensa ILP32 reference ABI; GNU libstdc++ container control-block sizes are implementation-sensitive.
+ * Confidence: low; compile-time sizeof on the concrete target remains authoritative for ABI-sensitive/opaque members.
+ * End ESPressio Memory Audit
+ */
+template<
             typename TLockPolicy = ThreadSafeLockPolicy,
             typename TTick = ClockTick
         >
@@ -45,7 +61,17 @@ namespace ESPressio {
                 using ClockCallback =
                     std::function<void()>;
 
-                struct ScheduledCallback {
+/**
+ * ESPressio Memory Audit
+ * Members:
+ * - Time (TTick): sizeof(TTick) [0 bytes dynamic allocation]
+ * - Callback (ClockCallback): sizeof(ClockCallback) [0 bytes dynamic allocation]
+ * Total Memory: sizeof(TTick) + sizeof(ClockCallback) [0 bytes dynamic allocation]
+ * Basis: ESP32/Xtensa ILP32 reference ABI; GNU libstdc++ container control-block sizes are implementation-sensitive.
+ * Confidence: low; compile-time sizeof on the concrete target remains authoritative for ABI-sensitive/opaque members.
+ * End ESPressio Memory Audit
+ */
+struct ScheduledCallback {
                     TTick Time = 0;
                     ClockCallback Callback = nullptr;
                 };
@@ -931,7 +957,17 @@ namespace ESPressio {
          * Different TTime specializations may coexist, but they all represent
          * the same underlying system clock state and callback scheduler.
          */
-        template<
+/**
+ * ESPressio Memory Audit
+ * Inherited Memory Total: sizeof(IClockSettable<TTime>) + 4 bytes vptr [0 bytes dynamic allocation]
+ * Members:
+ * - _core (Core&): 4 bytes [0 bytes dynamic allocation]
+ * Total Memory: 4 bytes known bases + sizeof(IClockSettable<TTime>) + 4 bytes vptr + 4 bytes known members [0 bytes dynamic allocation]
+ * Basis: ESP32/Xtensa ILP32 reference ABI; GNU libstdc++ container control-block sizes are implementation-sensitive.
+ * Confidence: low; compile-time sizeof on the concrete target remains authoritative for ABI-sensitive/opaque members.
+ * End ESPressio Memory Audit
+ */
+template<
             typename TTime = DefaultClockTime,
             typename TLockPolicy =
                 ThreadSafeLockPolicy,

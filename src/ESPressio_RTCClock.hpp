@@ -15,6 +15,21 @@ namespace Timing {
 
 /// <summary>Observable RTC-backed clock base that extrapolates between RTC synchronization points using a monotonic time source.</summary>
 /// <typeparam name="TLockPolicy">Synchronization policy protecting clock state and RTC I/O.</typeparam>
+/**
+ * ESPressio Memory Audit
+ * Inherited Memory Total: sizeof(IClock<TTime>) + 4 bytes known members + sizeof(IClockSettable<TTime>) + 4 bytes vptr [0 bytes dynamic allocation]
+ * Members:
+ * - _rtcTime (TTick): sizeof(TTick) [0 bytes dynamic allocation]
+ * - _sourceTime (TTick): sizeof(TTick) [0 bytes dynamic allocation]
+ * - _rtcResolution (TTick): sizeof(TTick) [0 bytes dynamic allocation]
+ * - _isSynchronized (bool): 1 bytes [0 bytes dynamic allocation]
+ * - _stateMutex (TLockPolicy::Mutex): 0 bytes [0 bytes dynamic allocation]
+ * - _rtcIOMutex (TLockPolicy::Mutex): 0 bytes [0 bytes dynamic allocation]
+ * Total Memory: sizeof(IClock<TTime>) + 4 bytes known members + sizeof(IClockSettable<TTime>) + 4 bytes vptr + 1 bytes known members + sizeof(TTick) + sizeof(TTick) + sizeof(TTick) [0 bytes dynamic allocation]
+ * Basis: ESP32/Xtensa ILP32 reference ABI; GNU libstdc++ container control-block sizes are implementation-sensitive.
+ * Confidence: low; compile-time sizeof on the concrete target remains authoritative for ABI-sensitive/opaque members.
+ * End ESPressio Memory Audit
+ */
 template<
     typename TTime = DefaultClockTime,
     typename TLockPolicy = ThreadSafeLockPolicy,

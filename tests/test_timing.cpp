@@ -46,6 +46,16 @@ static_assert(
     "Thread-safe and single-threaded clocks must be distinct types"
 );
 
+/**
+ * ESPressio Memory Audit
+ * Inherited Memory Total: 4 bytes [0 bytes dynamic allocation]
+ * Members:
+ * - ticks (uint64_t): 8 bytes [0 bytes dynamic allocation]
+ * - ticksPerSecond (uint64_t): 8 bytes [0 bytes dynamic allocation]
+ * Total Memory: 20 bytes [0 bytes dynamic allocation]
+ * Basis: ESP32/Xtensa ILP32 reference ABI; GNU libstdc++ container control-block sizes are implementation-sensitive.
+ * End ESPressio Memory Audit
+ */
 class ManualTimeSource : public ITimeSource {
     public:
         uint64_t ticks = 0;
@@ -60,6 +70,14 @@ class ManualTimeSource : public ITimeSource {
         }
 };
 
+/**
+ * ESPressio Memory Audit
+ * Inherited Memory Total: 4 bytes [0 bytes dynamic allocation]
+ * Members: none (empty object still occupies at least 1 byte unless empty-base optimisation applies).
+ * Total Memory: 4 bytes [0 bytes dynamic allocation]
+ * Basis: ESP32/Xtensa ILP32 reference ABI; GNU libstdc++ container control-block sizes are implementation-sensitive.
+ * End ESPressio Memory Audit
+ */
 class ConcurrentTimeSource : public ITimeSource {
     public:
         std::atomic<uint64_t> ticks{0};
@@ -78,6 +96,15 @@ class ConcurrentTimeSource : public ITimeSource {
         }
 };
 
+/**
+ * ESPressio Memory Audit
+ * Inherited Memory Total: sizeof(ClockBase<TTime, TTick>) + sizeof(IStopwatchClock<TTime>) + 1 bytes known members + sizeof(TLockPolicy::Mutex) + sizeof(TTick) + sizeof(TTick) [0 bytes dynamic allocation]
+ * Members: none (empty object still occupies at least 1 byte unless empty-base optimisation applies).
+ * Total Memory: sizeof(ClockBase<TTime, TTick>) + sizeof(IStopwatchClock<TTime>) + 1 bytes known members + sizeof(TLockPolicy::Mutex) + sizeof(TTick) + sizeof(TTick) [0 bytes dynamic allocation]
+ * Basis: ESP32/Xtensa ILP32 reference ABI; GNU libstdc++ container control-block sizes are implementation-sensitive.
+ * Confidence: low; compile-time sizeof on the concrete target remains authoritative for ABI-sensitive/opaque members.
+ * End ESPressio Memory Audit
+ */
 class LockableStopwatchClock : public StopwatchClock {
     public:
         explicit LockableStopwatchClock(ITimeSource* source)
@@ -102,6 +129,18 @@ static ManualTimeSource& GetSingleThreadedSystemTimeSource() {
     return source;
 }
 
+/**
+ * ESPressio Memory Audit
+ * Inherited Memory Total: sizeof(ClockBase<TTime, TTick>) + sizeof(IRTCClock<TTime>) + 1 bytes known members + sizeof(TTick) + sizeof(TTick) + sizeof(TTick) + sizeof(TLockPolicy::Mutex) + sizeof(TLockPolicy::Mutex) + 4 bytes vptr [0 bytes dynamic allocation]
+ * Members:
+ * - hardwareTime (ClockTime): sizeof(ClockTime) [0 bytes dynamic allocation]
+ * - canRead (bool): 1 bytes [0 bytes dynamic allocation]
+ * - canWrite (bool): 1 bytes [0 bytes dynamic allocation]
+ * Total Memory: sizeof(ClockBase<TTime, TTick>) + sizeof(IRTCClock<TTime>) + 1 bytes known members + sizeof(TTick) + sizeof(TTick) + sizeof(TTick) + sizeof(TLockPolicy::Mutex) + sizeof(TLockPolicy::Mutex) + 4 bytes vptr + 2 bytes known members + sizeof(ClockTime) [0 bytes dynamic allocation]
+ * Basis: ESP32/Xtensa ILP32 reference ABI; GNU libstdc++ container control-block sizes are implementation-sensitive.
+ * Confidence: low; compile-time sizeof on the concrete target remains authoritative for ABI-sensitive/opaque members.
+ * End ESPressio Memory Audit
+ */
 class TestRTCClock : public RTCClockBase {
     public:
         ClockTime hardwareTime;
@@ -134,6 +173,16 @@ class TestRTCClock : public RTCClockBase {
         }
 };
 
+/**
+ * ESPressio Memory Audit
+ * Inherited Memory Total: sizeof(SingleThreadedRTCClockBase) [0 bytes dynamic allocation]
+ * Members:
+ * - hardwareTime (ClockTime): sizeof(ClockTime) [0 bytes dynamic allocation]
+ * Total Memory: sizeof(SingleThreadedRTCClockBase) + sizeof(ClockTime) [0 bytes dynamic allocation]
+ * Basis: ESP32/Xtensa ILP32 reference ABI; GNU libstdc++ container control-block sizes are implementation-sensitive.
+ * Confidence: low; compile-time sizeof on the concrete target remains authoritative for ABI-sensitive/opaque members.
+ * End ESPressio Memory Audit
+ */
 class SingleThreadedTestRTCClock : public SingleThreadedRTCClockBase {
     public:
         ClockTime hardwareTime;

@@ -15,6 +15,19 @@ namespace Timing {
 
 /// <summary>Observable stopwatch implementation backed by a monotonic <c>ITimeSource</c>.</summary>
 /// <typeparam name="TLockPolicy">Synchronization policy protecting stopwatch state.</typeparam>
+/**
+ * ESPressio Memory Audit
+ * Inherited Memory Total: sizeof(IClock<TTime>) + 4 bytes known members + sizeof(IClockSettable<TTime>) + 4 bytes vptr [0 bytes dynamic allocation]
+ * Members:
+ * - _clockMutex (TLockPolicy::Mutex): 0 bytes [0 bytes dynamic allocation]
+ * - _elapsedTime (TTick): sizeof(TTick) [0 bytes dynamic allocation]
+ * - _startTime (TTick): sizeof(TTick) [0 bytes dynamic allocation]
+ * - _isRunning (bool): 1 bytes [0 bytes dynamic allocation]
+ * Total Memory: sizeof(IClock<TTime>) + 4 bytes known members + sizeof(IClockSettable<TTime>) + 4 bytes vptr + 1 bytes known members + sizeof(TTick) + sizeof(TTick) [0 bytes dynamic allocation]
+ * Basis: ESP32/Xtensa ILP32 reference ABI; GNU libstdc++ container control-block sizes are implementation-sensitive.
+ * Confidence: low; compile-time sizeof on the concrete target remains authoritative for ABI-sensitive/opaque members.
+ * End ESPressio Memory Audit
+ */
 template<
     typename TTime = DefaultClockTime,
     typename TLockPolicy = ThreadSafeLockPolicy,

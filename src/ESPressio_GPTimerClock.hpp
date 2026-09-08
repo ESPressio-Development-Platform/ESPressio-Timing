@@ -15,7 +15,18 @@ namespace Timing {
 
     /// <summary>Stopwatch clock backed directly by the platform GPTimer time source.</summary>
     /// <remarks>Availability and initialization status are exposed explicitly so applications can detect unsupported or failed GPTimer initialization.</remarks>
-    template<
+/**
+ * ESPressio Memory Audit
+ * Inherited Memory Total: sizeof(IClockSettable<TTime>) + 4 bytes vptr [0 bytes dynamic allocation]
+ * Members:
+ * - _timeSource (GPTimerTimeSource): sizeof(ITimeSource) + 4 bytes known members [_counter: owned object: sizeof(System::Clock::IHighResolutionCounter)]
+ * - _stopwatch (StopwatchClock<TTime, TLockPolicy, TTick>): sizeof(ClockBase<TTime, TTick>) + sizeof(IStopwatchClock<TTime>) + 1 bytes known members + sizeof(TLockPolicy::Mutex) + sizeof(TTick) + sizeof(TTick) [0 bytes dynamic allocation]
+ * Total Memory: sizeof(IClockSettable<TTime>) + 4 bytes vptr + sizeof(ITimeSource) + 4 bytes known members + sizeof(ClockBase<TTime, TTick>) + sizeof(IStopwatchClock<TTime>) + 1 bytes known members + sizeof(TLockPolicy::Mutex) + sizeof(TTick) + sizeof(TTick) [_timeSource: _counter: owned object: sizeof(System::Clock::IHighResolutionCounter)]
+ * Basis: ESP32/Xtensa ILP32 reference ABI; GNU libstdc++ container control-block sizes are implementation-sensitive.
+ * Confidence: low; compile-time sizeof on the concrete target remains authoritative for ABI-sensitive/opaque members.
+ * End ESPressio Memory Audit
+ */
+template<
         typename TTime = DefaultClockTime,
         typename TLockPolicy = ThreadSafeLockPolicy,
         typename TTick = ClockTick

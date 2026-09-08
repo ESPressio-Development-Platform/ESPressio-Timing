@@ -8,6 +8,16 @@
 using namespace ESPressio;
 using namespace ESPressio::Timing;
 
+/**
+ * ESPressio Memory Audit
+ * Inherited Memory Total: 4 bytes [0 bytes dynamic allocation]
+ * Members:
+ * - ticks (uint64_t): 8 bytes [0 bytes dynamic allocation]
+ * - ticksPerSecond (uint64_t): 8 bytes [0 bytes dynamic allocation]
+ * Total Memory: 20 bytes [0 bytes dynamic allocation]
+ * Basis: ESP32/Xtensa ILP32 reference ABI; GNU libstdc++ container control-block sizes are implementation-sensitive.
+ * End ESPressio Memory Audit
+ */
 class FakeTimeSource :
     public ITimeSource {
 

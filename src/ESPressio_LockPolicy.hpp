@@ -5,13 +5,34 @@ namespace ESPressio {
     namespace Timing {
 
         /// <summary>No-op lock policy for clock implementations whose callers guarantee single-threaded access.</summary>
-        struct NoLockPolicy {
+/**
+ * ESPressio Memory Audit
+ * Members: none (empty object still occupies at least 1 byte unless empty-base optimisation applies).
+ * Total Memory: 0 bytes [0 bytes dynamic allocation]
+ * Basis: ESP32/Xtensa ILP32 reference ABI; GNU libstdc++ container control-block sizes are implementation-sensitive.
+ * End ESPressio Memory Audit
+ */
+struct NoLockPolicy {
             /// <summary>Placeholder mutex type requiring no storage or synchronization.</summary>
-            struct Mutex {
+/**
+ * ESPressio Memory Audit
+ * Members: none (empty object still occupies at least 1 byte unless empty-base optimisation applies).
+ * Total Memory: 0 bytes [0 bytes dynamic allocation]
+ * Basis: ESP32/Xtensa ILP32 reference ABI; GNU libstdc++ container control-block sizes are implementation-sensitive.
+ * End ESPressio Memory Audit
+ */
+struct Mutex {
             };
 
             /// <summary>No-op scoped guard matching the lock-policy interface.</summary>
-            class Guard {
+/**
+ * ESPressio Memory Audit
+ * Members: none (empty object still occupies at least 1 byte unless empty-base optimisation applies).
+ * Total Memory: 0 bytes [0 bytes dynamic allocation]
+ * Basis: ESP32/Xtensa ILP32 reference ABI; GNU libstdc++ container control-block sizes are implementation-sensitive.
+ * End ESPressio Memory Audit
+ */
+class Guard {
                 public:
                     explicit Guard(
                         Mutex&

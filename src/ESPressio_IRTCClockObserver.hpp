@@ -10,6 +10,14 @@ namespace ESPressio {
 namespace Timing {
 
 /// <summary>Observer contract for RTC synchronization, interrupt, and explicit RTC-write lifecycle notifications.</summary>
+/**
+ * ESPressio Memory Audit
+ * Inherited Memory Total: 4 bytes [0 bytes dynamic allocation]
+ * Members: none; polymorphic interface/object includes vptr storage where not supplied by a base.
+ * Total Memory: 4 bytes [0 bytes dynamic allocation]
+ * Basis: ESP32/Xtensa ILP32 reference ABI; GNU libstdc++ container control-block sizes are implementation-sensitive.
+ * End ESPressio Memory Audit
+ */
 template<
     typename TTime = DefaultClockTime,
     typename TTick = ClockTick

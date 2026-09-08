@@ -9,7 +9,14 @@ namespace ESPressio {
         /// <summary>Transport-neutral endpoint for capturing timestamps and disciplining a clock from synchronization exchanges.</summary>
         /// <typeparam name="TTick">Raw timestamp representation used by synchronization calculations.</typeparam>
         /// <remarks>Network and radio integrations can depend on this interface without depending on a public unit-aware clock representation.</remarks>
-        template<typename TTick = ClockTick>
+/**
+ * ESPressio Memory Audit
+ * Members: none; polymorphic interface/object includes vptr storage where not supplied by a base.
+ * Total Memory: 4 bytes [0 bytes dynamic allocation]
+ * Basis: ESP32/Xtensa ILP32 reference ABI; GNU libstdc++ container control-block sizes are implementation-sensitive.
+ * End ESPressio Memory Audit
+ */
+template<typename TTick = ClockTick>
         class IClockSynchronizationTarget {
             public:
                 virtual ~IClockSynchronizationTarget() =

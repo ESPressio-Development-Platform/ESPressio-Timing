@@ -23,7 +23,17 @@ namespace Timing {
 
     /// <summary>Compatibility time-source adapter exposing the historical GPTimer API over the platform-neutral System high-resolution counter.</summary>
     /// <remarks>New code should prefer <c>HighResolutionTimeSource</c>; this adapter no longer owns or directly references ESP-IDF GPTimer resources.</remarks>
-    class GPTimerTimeSource : public ITimeSource {
+/**
+ * ESPressio Memory Audit
+ * Inherited Memory Total: 4 bytes [0 bytes dynamic allocation]
+ * Members:
+ * - _counter (std::unique_ptr<System::Clock::IHighResolutionCounter>): 4 bytes [owned object: sizeof(System::Clock::IHighResolutionCounter)]
+ * Total Memory: 8 bytes [_counter: owned object: sizeof(System::Clock::IHighResolutionCounter)]
+ * Basis: ESP32/Xtensa ILP32 reference ABI; GNU libstdc++ container control-block sizes are implementation-sensitive.
+ * Confidence: medium; compile-time sizeof on the concrete target remains authoritative for ABI-sensitive/opaque members.
+ * End ESPressio Memory Audit
+ */
+class GPTimerTimeSource : public ITimeSource {
     private:
         std::unique_ptr<System::Clock::IHighResolutionCounter> _counter;
         System::PlatformResult _initializationResult =
