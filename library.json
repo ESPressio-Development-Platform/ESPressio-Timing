@@ -27,12 +27,12 @@
         },
         {
             "name": "ESPressio-Units",
-            "version": "https://github.com/ESPressio-Development-Platform/ESPressio-Units.git#structural_realignment",
+            "version": "https://github.com/ESPressio-Development-Platform/ESPressio-Units.git#primitives_redesign",
             "platforms": "*"
         },
         {
             "name": "ESPressio-Observable",
-            "version": "https://github.com/ESPressio-Development-Platform/ESPressio-Observable.git#structural_realignment",
+            "version": "https://github.com/ESPressio-Development-Platform/ESPressio-Observable.git#primitives_redesign",
             "platforms": "*"
         }
     ]
