@@ -26,15 +26,7 @@ namespace Timing {
     /// Every default PrecisionThread consumes this same monotonic clock/source; no hardware
     /// timer is allocated per thread.
     /// </remarks>
-/**
- * ESPressio Memory Audit
- * Inherited Memory Total: 4 bytes [0 bytes dynamic allocation]
- * Members:
- * - _explicitTimeSource (ITimeSource*): 4 bytes [0 bytes dynamic allocation]
- * Total Memory: 8 bytes [0 bytes dynamic allocation]
- * Basis: ESP32/Xtensa ILP32 reference ABI (4-byte pointers/size_t); ESPressio stateful allocators/deleters included; ABI-sensitive STL/platform internals are identified explicitly.
- * End ESPressio Memory Audit
- */
+
 template<
         typename TTime = DefaultClockTime,
         typename TTick = ClockTick

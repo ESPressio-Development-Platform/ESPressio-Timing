@@ -250,37 +250,7 @@ namespace ESPressio {
          *
          * No network/radio concepts are present here.
          */
-/**
- * ESPressio Memory Audit
- * Members:
- * - _config (ClockSynchronizationConfig): 76 bytes [0 bytes dynamic allocation]
- * - _hasAcceptedSample (bool): 1 bytes [0 bytes dynamic allocation]
- * - _hasFilteredOffset (bool): 1 bytes [0 bytes dynamic allocation]
- * - _clockFilter (std::array<ClockFilterSample, MaximumClockFilterSamples>): 192 bytes [0 bytes dynamic allocation]
- * - _clockFilterCount (uint8_t): 1 bytes [0 bytes dynamic allocation]
- * - _clockFilterWriteIndex (uint8_t): 1 bytes [0 bytes dynamic allocation]
- * - _lastMeasuredOffsetNanoseconds (int64_t): 8 bytes [0 bytes dynamic allocation]
- * - _filteredOffsetNanoseconds (int64_t): 8 bytes [0 bytes dynamic allocation]
- * - _lastRoundTripDelayNanoseconds (uint64_t): 8 bytes [0 bytes dynamic allocation]
- * - _acceptedSampleCount (uint32_t): 4 bytes [0 bytes dynamic allocation]
- * - _rejectedSampleCount (uint32_t): 4 bytes [0 bytes dynamic allocation]
- * - _synchronizationEvidenceSampleCount (uint32_t): 4 bytes [0 bytes dynamic allocation]
- * - _lastAcceptedSampleLocalTime (TTick): sizeof(TTick) [0 bytes dynamic allocation]
- * - _hasPreviousDriftSample (bool): 1 bytes [0 bytes dynamic allocation]
- * - _previousDriftOffsetNanoseconds (int64_t): 8 bytes [0 bytes dynamic allocation]
- * - _previousDriftSampleLocalTime (TTick): sizeof(TTick) [0 bytes dynamic allocation]
- * - _estimatedDriftPpm (double): 8 bytes [0 bytes dynamic allocation]
- * - _pendingPhaseCorrectionNanoseconds (int64_t): 8 bytes [0 bytes dynamic allocation]
- * - _appliedCorrectionNanoseconds (int64_t): 8 bytes [0 bytes dynamic allocation]
- * - _advanceInitialized (bool): 1 bytes [0 bytes dynamic allocation]
- * - _lastAdvanceRawTime (TTick): sizeof(TTick) [0 bytes dynamic allocation]
- * - _phaseFractionNanoseconds (double): 8 bytes [0 bytes dynamic allocation]
- * - _frequencyFractionNanoseconds (double): 8 bytes [0 bytes dynamic allocation]
- * Total Memory: 368 bytes known/aligned storage + sizeof(TTick) + sizeof(TTick) + sizeof(TTick) [0 bytes dynamic allocation]
- * Basis: ESP32/Xtensa ILP32 reference ABI (4-byte pointers/size_t); ESPressio stateful allocators/deleters included; ABI-sensitive STL/platform internals are identified explicitly.
- * Confidence: low; compile-time sizeof on the concrete target remains authoritative for ABI-sensitive/opaque members.
- * End ESPressio Memory Audit
- */
+
 template<typename TTick = ClockTick>
         class ClockDiscipline {
             private:
@@ -290,16 +260,7 @@ template<typename TTick = ClockTick>
                 bool _hasAcceptedSample = false;
                 bool _hasFilteredOffset = false;
 
-/**
- * ESPressio Memory Audit
- * Members:
- * - OffsetNanoseconds (int64_t): 8 bytes [0 bytes dynamic allocation]
- * - RoundTripDelayNanoseconds (uint64_t): 8 bytes [0 bytes dynamic allocation]
- * - AppliedCorrectionNanoseconds (int64_t): 8 bytes [0 bytes dynamic allocation]
- * Total Memory: 24 bytes [0 bytes dynamic allocation]
- * Basis: ESP32/Xtensa ILP32 reference ABI (4-byte pointers/size_t); ESPressio stateful allocators/deleters included; ABI-sensitive STL/platform internals are identified explicitly.
- * End ESPressio Memory Audit
- */
+
 struct ClockFilterSample {
                     int64_t OffsetNanoseconds = 0;
                     uint64_t RoundTripDelayNanoseconds = 0;

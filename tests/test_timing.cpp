@@ -46,16 +46,7 @@ static_assert(
     "Thread-safe and single-threaded clocks must be distinct types"
 );
 
-/**
- * ESPressio Memory Audit
- * Inherited Memory Total: 4 bytes [0 bytes dynamic allocation]
- * Members:
- * - ticks (uint64_t): 8 bytes [0 bytes dynamic allocation]
- * - ticksPerSecond (uint64_t): 8 bytes [0 bytes dynamic allocation]
- * Total Memory: 20 bytes [0 bytes dynamic allocation]
- * Basis: ESP32/Xtensa ILP32 reference ABI (4-byte pointers/size_t); ESPressio stateful allocators/deleters included; ABI-sensitive STL/platform internals are identified explicitly.
- * End ESPressio Memory Audit
- */
+
 class ManualTimeSource : public ITimeSource {
     public:
         uint64_t ticks = 0;
@@ -70,16 +61,7 @@ class ManualTimeSource : public ITimeSource {
         }
 };
 
-/**
- * ESPressio Memory Audit
- * Inherited Memory Total: 4 bytes [0 bytes dynamic allocation]
- * Members:
- * - ticks (std::atomic<uint64_t>): 8 bytes [0 bytes dynamic allocation]
- * - readCount (std::atomic<uint32_t>): 4 bytes [0 bytes dynamic allocation]
- * Total Memory: 16 bytes [0 bytes dynamic allocation]
- * Basis: ESP32/Xtensa ILP32 reference ABI (4-byte pointers/size_t); ESPressio stateful allocators/deleters included; ABI-sensitive STL/platform internals are identified explicitly.
- * End ESPressio Memory Audit
- */
+
 class ConcurrentTimeSource : public ITimeSource {
     public:
         std::atomic<uint64_t> ticks{0};
@@ -98,15 +80,7 @@ class ConcurrentTimeSource : public ITimeSource {
         }
 };
 
-/**
- * ESPressio Memory Audit
- * Inherited Memory Total: 24 bytes known/aligned storage + sizeof(TLockPolicy::Mutex) + sizeof(TTick) + sizeof(TTick) [StopwatchClock: _observable: shared control block (~12+ bytes; allocate_shared may co-locate object) + object 20 bytes; StopwatchClock: _observable: pointee: ThreadSafeObservable: enable_shared_from_this: embedded weak_ptr shares a control block when activated; StopwatchClock: _observable: pointee: ThreadSafeObservable: mutex_: native synchronization state may allocate platform resources lazily]
- * Members: none (standalone empty object occupies 1 byte; an eligible empty base may be optimized to 0 bytes).
- * Total Memory: 24 bytes known/aligned storage + sizeof(TLockPolicy::Mutex) + sizeof(TTick) + sizeof(TTick) [StopwatchClock: _observable: shared control block (~12+ bytes; allocate_shared may co-locate object) + object 20 bytes; StopwatchClock: _observable: pointee: ThreadSafeObservable: enable_shared_from_this: embedded weak_ptr shares a control block when activated; StopwatchClock: _observable: pointee: ThreadSafeObservable: mutex_: native synchronization state may allocate platform resources lazily]
- * Basis: ESP32/Xtensa ILP32 reference ABI (4-byte pointers/size_t); ESPressio stateful allocators/deleters included; ABI-sensitive STL/platform internals are identified explicitly.
- * Confidence: low; compile-time sizeof on the concrete target remains authoritative for ABI-sensitive/opaque members.
- * End ESPressio Memory Audit
- */
+
 class LockableStopwatchClock : public StopwatchClock {
     public:
         explicit LockableStopwatchClock(ITimeSource* source)
@@ -131,18 +105,7 @@ static ManualTimeSource& GetSingleThreadedSystemTimeSource() {
     return source;
 }
 
-/**
- * ESPressio Memory Audit
- * Inherited Memory Total: 24 bytes known/aligned storage + sizeof(TTick) + sizeof(TTick) + sizeof(TTick) + sizeof(TLockPolicy::Mutex) + sizeof(TLockPolicy::Mutex) [RTCClockBase: _observable: shared control block (~12+ bytes; allocate_shared may co-locate object) + object 20 bytes; RTCClockBase: _observable: pointee: ThreadSafeObservable: enable_shared_from_this: embedded weak_ptr shares a control block when activated; RTCClockBase: _observable: pointee: ThreadSafeObservable: mutex_: native synchronization state may allocate platform resources lazily]
- * Members:
- * - hardwareTime (ClockTime): sizeof(ClockTime) (target/toolchain dependent) [0 bytes dynamic allocation]
- * - canRead (bool): 1 bytes [0 bytes dynamic allocation]
- * - canWrite (bool): 1 bytes [0 bytes dynamic allocation]
- * Total Memory: 2 bytes known/aligned storage + 24 bytes known/aligned storage + sizeof(TTick) + sizeof(TTick) + sizeof(TTick) + sizeof(TLockPolicy::Mutex) + sizeof(TLockPolicy::Mutex) + sizeof(ClockTime) (target/toolchain dependent) [RTCClockBase: _observable: shared control block (~12+ bytes; allocate_shared may co-locate object) + object 20 bytes; RTCClockBase: _observable: pointee: ThreadSafeObservable: enable_shared_from_this: embedded weak_ptr shares a control block when activated; RTCClockBase: _observable: pointee: ThreadSafeObservable: mutex_: native synchronization state may allocate platform resources lazily]
- * Basis: ESP32/Xtensa ILP32 reference ABI (4-byte pointers/size_t); ESPressio stateful allocators/deleters included; ABI-sensitive STL/platform internals are identified explicitly.
- * Confidence: low; compile-time sizeof on the concrete target remains authoritative for ABI-sensitive/opaque members.
- * End ESPressio Memory Audit
- */
+
 class TestRTCClock : public RTCClockBase {
     public:
         ClockTime hardwareTime;
@@ -175,16 +138,7 @@ class TestRTCClock : public RTCClockBase {
         }
 };
 
-/**
- * ESPressio Memory Audit
- * Inherited Memory Total: 24 bytes known/aligned storage + sizeof(TTick) + sizeof(TTick) + sizeof(TTick) [SingleThreadedRTCClockBase: _observable: shared control block (~12+ bytes; allocate_shared may co-locate object) + object 20 bytes; SingleThreadedRTCClockBase: _observable: pointee: ThreadSafeObservable: enable_shared_from_this: embedded weak_ptr shares a control block when activated; SingleThreadedRTCClockBase: _observable: pointee: ThreadSafeObservable: mutex_: native synchronization state may allocate platform resources lazily]
- * Members:
- * - hardwareTime (ClockTime): sizeof(ClockTime) (target/toolchain dependent) [0 bytes dynamic allocation]
- * Total Memory: 4 bytes known/aligned storage + 24 bytes known/aligned storage + sizeof(TTick) + sizeof(TTick) + sizeof(TTick) + sizeof(ClockTime) (target/toolchain dependent) [SingleThreadedRTCClockBase: _observable: shared control block (~12+ bytes; allocate_shared may co-locate object) + object 20 bytes; SingleThreadedRTCClockBase: _observable: pointee: ThreadSafeObservable: enable_shared_from_this: embedded weak_ptr shares a control block when activated; SingleThreadedRTCClockBase: _observable: pointee: ThreadSafeObservable: mutex_: native synchronization state may allocate platform resources lazily]
- * Basis: ESP32/Xtensa ILP32 reference ABI (4-byte pointers/size_t); ESPressio stateful allocators/deleters included; ABI-sensitive STL/platform internals are identified explicitly.
- * Confidence: low; compile-time sizeof on the concrete target remains authoritative for ABI-sensitive/opaque members.
- * End ESPressio Memory Audit
- */
+
 class SingleThreadedTestRTCClock : public SingleThreadedRTCClockBase {
     public:
         ClockTime hardwareTime;

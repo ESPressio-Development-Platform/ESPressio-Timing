@@ -15,17 +15,7 @@ namespace Timing {
 
     /// <summary>Stopwatch clock backed directly by the platform GPTimer time source.</summary>
     /// <remarks>Availability and initialization status are exposed explicitly so applications can detect unsupported or failed GPTimer initialization.</remarks>
-/**
- * ESPressio Memory Audit
- * Inherited Memory Total: 4 bytes [0 bytes dynamic allocation]
- * Members:
- * - _timeSource (GPTimerTimeSource): 16 bytes [_counter: owned object: 4 bytes]
- * - _stopwatch (StopwatchClock<TTime, TLockPolicy, TTick>): 24 bytes known/aligned storage + sizeof(TTick) + sizeof(TTick) [_observable: shared control block (~12+ bytes; allocate_shared may co-locate object) + object 20 bytes; _observable: pointee: ThreadSafeObservable: enable_shared_from_this: embedded weak_ptr shares a control block when activated; _observable: pointee: ThreadSafeObservable: mutex_: native synchronization state may allocate platform resources lazily]
- * Total Memory: 20 bytes known/aligned storage + 24 bytes known/aligned storage + sizeof(TTick) + sizeof(TTick) [_timeSource: _counter: owned object: 4 bytes; _stopwatch: _observable: shared control block (~12+ bytes; allocate_shared may co-locate object) + object 20 bytes; _stopwatch: _observable: pointee: ThreadSafeObservable: enable_shared_from_this: embedded weak_ptr shares a control block when activated; _stopwatch: _observable: pointee: ThreadSafeObservable: mutex_: native synchronization state may allocate platform resources lazily]
- * Basis: ESP32/Xtensa ILP32 reference ABI (4-byte pointers/size_t); ESPressio stateful allocators/deleters included; ABI-sensitive STL/platform internals are identified explicitly.
- * Confidence: low; compile-time sizeof on the concrete target remains authoritative for ABI-sensitive/opaque members.
- * End ESPressio Memory Audit
- */
+
 template<
         typename TTime = DefaultClockTime,
         typename TLockPolicy = ThreadSafeLockPolicy,

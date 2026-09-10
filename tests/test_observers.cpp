@@ -7,15 +7,7 @@
 using namespace ESPressio;
 using namespace ESPressio::Timing;
 
-/**
- * ESPressio Memory Audit
- * Inherited Memory Total: 4 bytes [0 bytes dynamic allocation]
- * Members:
- * - ticks (uint64_t): 8 bytes [0 bytes dynamic allocation]
- * Total Memory: 12 bytes [0 bytes dynamic allocation]
- * Basis: ESP32/Xtensa ILP32 reference ABI (4-byte pointers/size_t); ESPressio stateful allocators/deleters included; ABI-sensitive STL/platform internals are identified explicitly.
- * End ESPressio Memory Audit
- */
+
 class ObserverFakeSource : public ITimeSource {
 public:
     uint64_t ticks = 0;
@@ -23,26 +15,7 @@ public:
     uint64_t GetTicksPerSecond() const override { return 1000000000ULL; }
 };
 
-/**
- * ESPressio Memory Audit
- * Inherited Memory Total: 4 bytes [0 bytes dynamic allocation]
- * Members:
- * - setCount (int): 4 bytes [0 bytes dynamic allocation]
- * - acceptedCount (int): 4 bytes [0 bytes dynamic allocation]
- * - rejectedCount (int): 4 bytes [0 bytes dynamic allocation]
- * - synchronizedCount (int): 4 bytes [0 bytes dynamic allocation]
- * - stateChangedCount (int): 4 bytes [0 bytes dynamic allocation]
- * - callbackScheduledCount (int): 4 bytes [0 bytes dynamic allocation]
- * - callbackExecutedCount (int): 4 bytes [0 bytes dynamic allocation]
- * - callbackFailedCount (int): 4 bytes [0 bytes dynamic allocation]
- * - resetCount (int): 4 bytes [0 bytes dynamic allocation]
- * - before (uint64_t): 8 bytes [0 bytes dynamic allocation]
- * - after (uint64_t): 8 bytes [0 bytes dynamic allocation]
- * - diff (int64_t): 8 bytes [0 bytes dynamic allocation]
- * Total Memory: 64 bytes [0 bytes dynamic allocation]
- * Basis: ESP32/Xtensa ILP32 reference ABI (4-byte pointers/size_t); ESPressio stateful allocators/deleters included; ABI-sensitive STL/platform internals are identified explicitly.
- * End ESPressio Memory Audit
- */
+
 class SystemObserver : public ISystemClockObserver<uint64_t> {
 public:
     int setCount = 0;
@@ -81,15 +54,7 @@ public:
     void OnSystemClockCallbackExecutionFailed(uint64_t, uint64_t, int64_t, std::exception_ptr) override { ++callbackFailedCount; }
 };
 
-/**
- * ESPressio Memory Audit
- * Inherited Memory Total: 4 bytes [0 bytes dynamic allocation]
- * Members:
- * - starts (int): 4 bytes [0 bytes dynamic allocation]
- * Total Memory: 8 bytes [0 bytes dynamic allocation]
- * Basis: ESP32/Xtensa ILP32 reference ABI (4-byte pointers/size_t); ESPressio stateful allocators/deleters included; ABI-sensitive STL/platform internals are identified explicitly.
- * End ESPressio Memory Audit
- */
+
 class StopwatchObserver : public IStopwatchClockObserver<DefaultClockTime, uint64_t> {
 public:
     int starts=0, stops=0, resets=0, restarts=0, sets=0;
@@ -100,18 +65,7 @@ public:
     void OnStopwatchTimeSet(uint64_t, uint64_t, int64_t, bool) override { ++sets; }
 };
 
-/**
- * ESPressio Memory Audit
- * Inherited Memory Total: 24 bytes known/aligned storage + sizeof(TTick) + sizeof(TTick) + sizeof(TTick) [RTCClockBase: _observable: shared control block (~12+ bytes; allocate_shared may co-locate object) + object 20 bytes; RTCClockBase: _observable: pointee: ThreadSafeObservable: enable_shared_from_this: embedded weak_ptr shares a control block when activated; RTCClockBase: _observable: pointee: ThreadSafeObservable: mutex_: native synchronization state may allocate platform resources lazily]
- * Members:
- * - readSucceeds (bool): 1 bytes [0 bytes dynamic allocation]
- * - writeSucceeds (bool): 1 bytes [0 bytes dynamic allocation]
- * - stored (DefaultClockTime): 12 bytes [0 bytes dynamic allocation]
- * Total Memory: 16 bytes known/aligned storage + 24 bytes known/aligned storage + sizeof(TTick) + sizeof(TTick) + sizeof(TTick) [RTCClockBase: _observable: shared control block (~12+ bytes; allocate_shared may co-locate object) + object 20 bytes; RTCClockBase: _observable: pointee: ThreadSafeObservable: enable_shared_from_this: embedded weak_ptr shares a control block when activated; RTCClockBase: _observable: pointee: ThreadSafeObservable: mutex_: native synchronization state may allocate platform resources lazily]
- * Basis: ESP32/Xtensa ILP32 reference ABI (4-byte pointers/size_t); ESPressio stateful allocators/deleters included; ABI-sensitive STL/platform internals are identified explicitly.
- * Confidence: low; compile-time sizeof on the concrete target remains authoritative for ABI-sensitive/opaque members.
- * End ESPressio Memory Audit
- */
+
 class ObserverRTC : public RTCClockBase<DefaultClockTime, NoLockPolicy> {
 public:
     bool readSucceeds=true;
@@ -123,15 +77,7 @@ protected:
     bool WriteRTC(const DefaultClockTime& t) override { if(!writeSucceeds) return false; stored=t; return true; }
 };
 
-/**
- * ESPressio Memory Audit
- * Inherited Memory Total: 4 bytes [0 bytes dynamic allocation]
- * Members:
- * - syncSuccess (int): 4 bytes [0 bytes dynamic allocation]
- * Total Memory: 8 bytes [0 bytes dynamic allocation]
- * Basis: ESP32/Xtensa ILP32 reference ABI (4-byte pointers/size_t); ESPressio stateful allocators/deleters included; ABI-sensitive STL/platform internals are identified explicitly.
- * End ESPressio Memory Audit
- */
+
 class RTCObserver : public IRTCClockObserver<DefaultClockTime, uint64_t> {
 public:
     int syncSuccess=0, syncFail=0, interrupts=0, timeInterrupts=0, writeSuccess=0, writeFail=0;

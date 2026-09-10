@@ -17,14 +17,7 @@ class SystemClockCore;
 
 /// <summary>Observes meaningful state changes performed by the System Clock.</summary>
 /// <remarks>All timestamps are expressed in the core canonical nanosecond domain, independent of the public <c>SystemClock&lt;TTime&gt;</c> facade.</remarks>
-/**
- * ESPressio Memory Audit
- * Inherited Memory Total: 4 bytes [0 bytes dynamic allocation]
- * Members: none; polymorphic/virtual-base object metadata is included in the total.
- * Total Memory: 4 bytes [0 bytes dynamic allocation]
- * Basis: ESP32/Xtensa ILP32 reference ABI (4-byte pointers/size_t); ESPressio stateful allocators/deleters included; ABI-sensitive STL/platform internals are identified explicitly.
- * End ESPressio Memory Audit
- */
+
 template<typename TTick = ClockTick>
 class ISystemClockObserver :
     public virtual Observable::IObserver {

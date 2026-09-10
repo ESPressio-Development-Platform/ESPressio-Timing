@@ -13,14 +13,7 @@ template<typename TTime, typename TLockPolicy, typename TTick>
 class StopwatchClock;
 
 /// <summary>Observer contract for stopwatch lifecycle and elapsed-time adjustment notifications.</summary>
-/**
- * ESPressio Memory Audit
- * Inherited Memory Total: 4 bytes [0 bytes dynamic allocation]
- * Members: none; polymorphic/virtual-base object metadata is included in the total.
- * Total Memory: 4 bytes [0 bytes dynamic allocation]
- * Basis: ESP32/Xtensa ILP32 reference ABI (4-byte pointers/size_t); ESPressio stateful allocators/deleters included; ABI-sensitive STL/platform internals are identified explicitly.
- * End ESPressio Memory Audit
- */
+
 template<
     typename TTime = DefaultClockTime,
     typename TTick = ClockTick

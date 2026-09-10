@@ -3,52 +3,24 @@
 #include <cstdint>
 #include "esp_err.h"
 
-/**
- * ESPressio Memory Audit
- * Members:
- * - resolution (uint32_t): 4 bytes [0 bytes dynamic allocation]
- * Total Memory: 4 bytes [0 bytes dynamic allocation]
- * Basis: ESP32/Xtensa ILP32 reference ABI (4-byte pointers/size_t); ESPressio stateful allocators/deleters included; ABI-sensitive STL/platform internals are identified explicitly.
- * End ESPressio Memory Audit
- */
+
 struct FakeGPTimer {
     uint32_t resolution;
 };
 
 typedef FakeGPTimer* gptimer_handle_t;
 
-/**
- * ESPressio Memory Audit
- * Underlying storage: 4 bytes
- * Total Memory: 4 bytes [0 bytes dynamic allocation]
- * Basis: ESP32/Xtensa ILP32 reference ABI (4-byte pointers/size_t); ESPressio stateful allocators/deleters included; ABI-sensitive STL/platform internals are identified explicitly.
- * End ESPressio Memory Audit
- */
+
 enum gptimer_clock_source_t {
     GPTIMER_CLK_SRC_DEFAULT
 };
 
-/**
- * ESPressio Memory Audit
- * Underlying storage: 4 bytes
- * Total Memory: 4 bytes [0 bytes dynamic allocation]
- * Basis: ESP32/Xtensa ILP32 reference ABI (4-byte pointers/size_t); ESPressio stateful allocators/deleters included; ABI-sensitive STL/platform internals are identified explicitly.
- * End ESPressio Memory Audit
- */
+
 enum gptimer_count_direction_t {
     GPTIMER_COUNT_UP
 };
 
-/**
- * ESPressio Memory Audit
- * Members:
- * - clk_src (gptimer_clock_source_t): 4 bytes [0 bytes dynamic allocation]
- * - direction (gptimer_count_direction_t): 4 bytes [0 bytes dynamic allocation]
- * - resolution_hz (uint32_t): 4 bytes [0 bytes dynamic allocation]
- * Total Memory: 12 bytes [0 bytes dynamic allocation]
- * Basis: ESP32/Xtensa ILP32 reference ABI (4-byte pointers/size_t); ESPressio stateful allocators/deleters included; ABI-sensitive STL/platform internals are identified explicitly.
- * End ESPressio Memory Audit
- */
+
 struct gptimer_config_t {
     gptimer_clock_source_t clk_src;
     gptimer_count_direction_t direction;
