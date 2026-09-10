@@ -31,9 +31,8 @@ The current version is **2.2.8**.
 
 During the release restructuring, Timing consumes Units and Observable from `main`. Timing itself remains independent of ESPressio Serializable; applications selecting Serializable Unit time types consume Serializable through Units, and CI validates that path against Serializable `main`.
 
-## Version 2.2.0
 
-Version `2.2.0` adds first-class Observer notifications throughout meaningful Timing state transitions, using ESPressio Observable 3.x. The synchronization and generic `TTime` architecture introduced in 2.0/2.1 remains unchanged.
+Version `2.2.0` adds first-class Observer notifications throughout meaningful Timing state transitions, using ESPressio Observable. The synchronization and generic `TTime` architecture introduced/2.1 remains unchanged.
 
 The library no longer defines one globally fixed `ClockTime` contract for every clock. Instead, clock interfaces and implementations are parameterized by their public `TTime` representation.
 
@@ -41,7 +40,7 @@ This allows an application to use ordinary ESPressio Unit time values, opt-in Se
 
 ## Observer Notifications
 
-Version `2.2.0` makes **ESPressio Observable >= 3.0.0 < 4.0.0** a required dependency and adds observer interfaces for meaningful Timing operations.
+Version `2.2.0` makes **ESPressio Observable** a required dependency and adds observer interfaces for meaningful Timing operations.
 
 Timing deliberately does **not** notify for ordinary reads such as `GetTime()`, `GetResolution()`, `GetIsRunning()`, or `GetSynchronizationStatus()`. Observer callbacks represent operations and state transitions rather than polling activity.
 
@@ -60,7 +59,7 @@ ISystemClockObserver<ClockTick>
 and register through any typed System Clock facade:
 
 ```cpp
-class ClockObserver :
+class ClockObserver:
     public Timing::ISystemClockObserver<
         Timing::ClockTick
     > {
@@ -76,7 +75,7 @@ public:
             Timing::ClockTick
         >& status
     ) override {
-        // ...
+        //...
     }
 };
 
