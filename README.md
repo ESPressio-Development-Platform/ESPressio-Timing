@@ -18,11 +18,7 @@ For the disciplined Timing System Clock API, new cross-library code should inclu
 
 The primitive System platform-clock contract is exposed separately through `ESPressio_SystemPlatformClock.hpp`. The historical `GPTimerTimeSource` remains as a source-compatibility adapter over `System::Clock::IHighResolutionCounter`; new code should prefer the generic high-resolution-counter terminology and `GetIsUsingHighResolutionCounter()`.
 
-This working branch no longer requires consumers to include ESP-IDF timer headers or handle `esp_err_t`/GPTimer-native types in Timing APIs. The published-version information below is retained as release-history guidance until the staged Timing release is prepared.
-
-## Latest Stable Version
-
-The current version is **2.2.8**.
+This working branch no longer requires consumers to include ESP-IDF timer headers or handle `esp_err_t`/GPTimer-native types in Timing APIs.
 
 ### Current ESPressio dependencies
 
@@ -32,7 +28,7 @@ The current version is **2.2.8**.
 During the release restructuring, Timing consumes Units and Observable from `main`. Timing itself remains independent of ESPressio Serializable; applications selecting Serializable Unit time types consume Serializable through Units, and CI validates that path against Serializable `main`.
 
 
-Version `2.2.0` adds first-class Observer notifications throughout meaningful Timing state transitions, using ESPressio Observable. The synchronization and generic `TTime` architecture introduced/2.1 remains unchanged.
+Timing provides first-class Observer notifications throughout meaningful Timing state transitions using ESPressio Observable. The synchronization and generic `TTime` architecture remains unchanged.
 
 The library no longer defines one globally fixed `ClockTime` contract for every clock. Instead, clock interfaces and implementations are parameterized by their public `TTime` representation.
 
@@ -40,7 +36,7 @@ This allows an application to use ordinary ESPressio Unit time values, opt-in Se
 
 ## Observer Notifications
 
-Version `2.2.0` makes **ESPressio Observable** a required dependency and adds observer interfaces for meaningful Timing operations.
+**ESPressio Observable** is a required dependency and Timing exposes observer interfaces for meaningful Timing operations.
 
 Timing deliberately does **not** notify for ordinary reads such as `GetTime()`, `GetResolution()`, `GetIsRunning()`, or `GetSynchronizationStatus()`. Observer callbacks represent operations and state transitions rather than polling activity.
 
@@ -176,7 +172,7 @@ Destroying or explicitly unregistering the handle removes the Observer registrat
 
 ## System Clock Synchronization
 
-Version `2.1.0` adds a transport-independent synchronization and clock-discipline layer to the shared `SystemClockCore`.
+Timing provides a transport-independent synchronization and clock-discipline layer to the shared `SystemClockCore`.
 
 The design deliberately separates:
 
