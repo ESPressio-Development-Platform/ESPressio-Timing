@@ -1,266 +1,64 @@
+#include <ESPressio_ClockDiscipline.hpp>
+#include "ClockTestEvidence.hpp"
 #include <cassert>
 #include <cmath>
-#include <cstdint>
-
-#include <ESPressio_Timing.hpp>
-
-using namespace ESPressio;
+#include <cstdlib>
+#include <new>
 using namespace ESPressio::Timing;
-
-
-static void TestSampleCalculation() {
-    ClockSynchronizationConfig config;
-    config.OffsetFilterWeight = 1.0;
-
-    ClockDiscipline<uint64_t> discipline(config);
-    ClockSynchronizationSample<uint64_t> sample;
-    sample.LocalRequestTransmitTime = 1000;
-    sample.RemoteRequestReceiveTime = 1500;
-    sample.RemoteResponseTransmitTime = 1600;
-    sample.LocalResponseReceiveTime = 1200;
-
-    const auto result = discipline.SubmitSample(sample);
-    assert(result.Accepted);
-    assert(result.RoundTripDelayNanoseconds == 100);
-    assert(result.MeasuredOffsetNanoseconds == 450);
-    assert(result.FilteredOffsetNanoseconds == 450);
-}
-
-
-static void TestMalformedSampleRejection() {
-    ClockDiscipline<uint64_t> discipline;
-    ClockSynchronizationSample<uint64_t> sample;
-    sample.LocalRequestTransmitTime = 1000;
-    sample.LocalResponseReceiveTime = 1100;
-    sample.RemoteRequestReceiveTime = 2000;
-    sample.RemoteResponseTransmitTime = 2200;
-    const auto result = discipline.SubmitSample(sample);
-    assert(!result.Accepted);
-    assert(result.RejectedSampleCount == 1);
-}
-
-
-static void TestPhaseSlew() {
-    ClockSynchronizationConfig config;
-    config.MaximumSlewRatePpm = 100000;
-    config.OffsetFilterWeight = 1.0;
-
-    ClockDiscipline<uint64_t> discipline(config);
-    ClockSynchronizationSample<uint64_t> sample;
-    sample.LocalRequestTransmitTime = 1000;
-    sample.RemoteRequestReceiveTime = 2000;
-    sample.RemoteResponseTransmitTime = 2000;
-    sample.LocalResponseReceiveTime = 1000;
-
-    const auto result = discipline.SubmitSample(sample);
-    assert(result.Accepted);
-    assert(result.MeasuredOffsetNanoseconds == 1000);
-
-    discipline.Advance(1000);
-    discipline.Advance(11000);
-    assert(discipline.GetAppliedCorrectionNanoseconds() == 1000);
-    assert(discipline.GetPendingPhaseCorrectionNanoseconds() == 0);
-}
-
-
-static void TestStep() {
-    ClockDiscipline<uint64_t> discipline;
-    discipline.ApplyStep(-250);
-    assert(discipline.GetAppliedCorrectionNanoseconds() == -250);
-    assert(discipline.GetPendingPhaseCorrectionNanoseconds() == 0);
-}
-
-
-static void TestDriftLearning() {
-    ClockSynchronizationConfig config;
-    config.OffsetFilterWeight = 1.0;
-    config.DriftFilterWeight = 1.0;
-    config.DriftLearningPhaseThresholdNanoseconds = 1000000ULL;
-    config.MinimumDriftLearningIntervalNanoseconds = 1000000000ULL;
-
-    ClockDiscipline<uint64_t> discipline(config);
-    ClockSynchronizationSample<uint64_t> first;
-    first.LocalRequestTransmitTime = 1000000ULL;
-    first.RemoteRequestReceiveTime = 1000000ULL;
-    first.RemoteResponseTransmitTime = 1000000ULL;
-    first.LocalResponseReceiveTime = 1000000ULL;
-    auto firstResult = discipline.SubmitSample(first);
-    assert(firstResult.Accepted);
-
-    ClockSynchronizationSample<uint64_t> second;
-    second.LocalRequestTransmitTime = 1001000000ULL;
-    second.RemoteRequestReceiveTime = 1001020000ULL;
-    second.RemoteResponseTransmitTime = 1001020000ULL;
-    second.LocalResponseReceiveTime = 1001000000ULL;
-    auto secondResult = discipline.SubmitSample(second);
-    assert(secondResult.Accepted);
-    assert(std::fabs(secondResult.EstimatedDriftPpm - 20.0) < 0.001);
-}
-
-
-static ClockSynchronizationSample<uint64_t> OffsetAndDelaySample(
-    uint64_t localTime,
-    int64_t offset,
-    uint64_t delay
-) {
-    ClockSynchronizationSample<uint64_t> sample;
-    sample.LocalRequestTransmitTime = localTime;
-    sample.RemoteRequestReceiveTime = static_cast<uint64_t>(
-        static_cast<int64_t>(localTime) + offset + static_cast<int64_t>(delay / 2U));
-    sample.RemoteResponseTransmitTime = sample.RemoteRequestReceiveTime;
-    sample.LocalResponseReceiveTime = localTime + delay;
-    return sample;
-}
-
-
-static void TestMinimumDelayClockFilterRejectsQueueExcursion() {
-    ClockSynchronizationConfig config;
-    config.OffsetFilterWeight = 1.0;
-    config.ClockFilterWindowSamples = 4;
-
-    ClockDiscipline<uint64_t> discipline(config);
-    auto baseline = discipline.SubmitSample(
-        OffsetAndDelaySample(1000000000ULL, 200000, 2000000ULL));
-    assert(baseline.Accepted);
-    assert(baseline.FilteredOffsetNanoseconds == 200000);
-
-    auto excursion = discipline.SubmitSample(
-        OffsetAndDelaySample(2000000000ULL, 5200000, 16000000ULL));
-    assert(excursion.Accepted);
-    assert(excursion.MeasuredOffsetNanoseconds == 5200000);
-    assert(excursion.FilteredOffsetNanoseconds == 200000);
-}
-
-
-static void TestClockFilterCompensatesAppliedCorrection() {
-    ClockSynchronizationConfig config;
-    config.MaximumSlewRatePpm = 100000;
-    config.OffsetFilterWeight = 1.0;
-    config.ClockFilterWindowSamples = 4;
-
-    ClockDiscipline<uint64_t> discipline(config);
-    auto first = discipline.SubmitSample(
-        OffsetAndDelaySample(1000000ULL, 1000, 100));
-    assert(first.Accepted);
-    discipline.Advance(1000000ULL);
-    discipline.Advance(1010000ULL);
-    assert(discipline.GetAppliedCorrectionNanoseconds() == 1000);
-
-    auto queued = discipline.SubmitSample(
-        OffsetAndDelaySample(2000000ULL, 4000, 10000));
-    assert(queued.Accepted);
-    assert(queued.MeasuredOffsetNanoseconds == 4000);
-    assert(queued.FilteredOffsetNanoseconds == 0);
-}
-
-
-static void TestClockFilterReconfigurationClearsRetainedWindow() {
-    ClockSynchronizationConfig config;
-    config.OffsetFilterWeight = 1.0;
-    config.ClockFilterWindowSamples = 4;
-    ClockDiscipline<uint64_t> discipline(config);
-    assert(discipline.SubmitSample(
-        OffsetAndDelaySample(1000000ULL, 200000, 100)).Accepted);
-
-    config.ClockFilterWindowSamples = 2;
-    discipline.Configure(config);
-    const auto afterReconfigure = discipline.SubmitSample(
-        OffsetAndDelaySample(2000000ULL, 700000, 10000));
-    assert(afterReconfigure.Accepted);
-    assert(afterReconfigure.FilteredOffsetNanoseconds == 700000);
-}
-
-
-static void TestHardStepInvalidatesPreStepClockFilterHistory() {
-    ClockSynchronizationConfig config;
-    config.OffsetFilterWeight = 1.0;
-    config.ClockFilterWindowSamples = 8;
-    config.SynchronizationToleranceNanoseconds = 500000ULL;
-    config.MinimumSamplesForSynchronizedState = 2U;
-
-    ClockDiscipline<uint64_t> discipline(config);
-
-    // The lowest-delay acquisition sample causes a large bootstrap step. Before the fix, this observation remained in
-    // the minimum-delay window and could continue producing a synthetic zero residual after the clock had stepped.
-    const auto acquisition = discipline.SubmitSample(
-        OffsetAndDelaySample(1000000000ULL, 10000000, 100000ULL));
-    assert(acquisition.Accepted);
-    assert(acquisition.FilteredOffsetNanoseconds == 10000000);
-    discipline.ApplyStep(acquisition.FilteredOffsetNanoseconds);
-
-    auto afterStepStatus = discipline.GetStatus(1010100000ULL);
-    assert(afterStepStatus.State == ClockSynchronizationState::Acquiring);
-    assert(afterStepStatus.FilteredOffsetNanoseconds == 0);
-    assert(afterStepStatus.PendingPhaseCorrectionNanoseconds == 0);
-
-    // A fresh, slightly slower post-step exchange sees a genuine 3 ms residual. It MUST become the first filter
-    // observation in the new coordinate system rather than losing to the old 100 us pre-step sample.
-    const auto residual = discipline.SubmitSample(
-        OffsetAndDelaySample(2000000000ULL, 3000000, 800000ULL));
-    assert(residual.Accepted);
-    assert(residual.MeasuredOffsetNanoseconds == 3000000);
-    assert(residual.FilteredOffsetNanoseconds == 3000000);
-    assert(discipline.GetPendingPhaseCorrectionNanoseconds() == 3000000);
-
-    const auto residualStatus = discipline.GetStatus(2000800000ULL);
-    assert(residualStatus.AcceptedSampleCount == 2U); // lifetime diagnostics remain cumulative
-    assert(residualStatus.State == ClockSynchronizationState::Acquiring);
-}
-
-
-static void TestFreshResidualMustSatisfySynchronizationTolerance() {
-    ClockSynchronizationConfig config;
-    config.OffsetFilterWeight = 1.0;
-    config.ClockFilterWindowSamples = 4U;
-    config.SynchronizationToleranceNanoseconds = 500000ULL;
-    config.MinimumSamplesForSynchronizedState = 2U;
-    config.MaximumRoundTripDelayNanoseconds = 1000000ULL;
-
-    ClockDiscipline<uint64_t> discipline(config);
-
-    // A precise low-delay sample establishes a plausible 0.1 ms phase estimate.
-    const auto baseline = discipline.SubmitSample(
-        OffsetAndDelaySample(1000000000ULL, 100000, 100000ULL));
-    assert(baseline.Accepted);
-    assert(baseline.FilteredOffsetNanoseconds == 100000);
-
-    // The next exchange is still accepted by the 1 ms RTT gate, but its fresh phase evidence is 5 ms away. The
-    // minimum-delay servo correctly keeps the older 0.1 ms sample as its filtered estimate; readiness must nevertheless
-    // reject the fresh 5 ms residual rather than claiming Synchronized from the historical filter winner.
-    const auto excursion = discipline.SubmitSample(
-        OffsetAndDelaySample(2000000000ULL, 5000000, 800000ULL));
-    assert(excursion.Accepted);
-    assert(excursion.RoundTripDelayNanoseconds == 800000ULL);
-    assert(excursion.MeasuredOffsetNanoseconds == 5000000);
-    assert(excursion.FilteredOffsetNanoseconds == 100000);
-    assert(discipline.GetPendingPhaseCorrectionNanoseconds() == 100000);
-
-    const auto excursionStatus = discipline.GetStatus(2000800000ULL);
-    assert(excursionStatus.AcceptedSampleCount == 2U);
-    assert(excursionStatus.LastMeasuredOffsetNanoseconds == 5000000);
-    assert(excursionStatus.State == ClockSynchronizationState::Acquiring);
-
-    // Once the freshest accepted residual is also inside tolerance, the same bounded filter may support Ready again.
-    const auto recovered = discipline.SubmitSample(
-        OffsetAndDelaySample(3000000000ULL, 200000, 700000ULL));
-    assert(recovered.Accepted);
-    const auto recoveredStatus = discipline.GetStatus(3000700000ULL);
-    assert(recoveredStatus.LastMeasuredOffsetNanoseconds == 200000);
-    assert(recoveredStatus.State == ClockSynchronizationState::Synchronized);
-}
-
-
+static bool denyHeap=false;
+void* operator new(std::size_t n) { if (denyHeap) std::abort(); if (auto* p=std::malloc(n ? n : 1)) return p; throw std::bad_alloc(); }
+void operator delete(void* p) noexcept { std::free(p); }
+void operator delete(void* p,std::size_t) noexcept { std::free(p); }
 int main() {
-    TestSampleCalculation();
-    TestMalformedSampleRejection();
-    TestPhaseSlew();
-    TestStep();
-    TestDriftLearning();
-    TestMinimumDelayClockFilterRejectsQueueExcursion();
-    TestClockFilterCompensatesAppliedCorrection();
-    TestClockFilterReconfigurationClearsRetainedWindow();
-    TestHardStepInvalidatesPreStepClockFilterHistory();
-    TestFreshResidualMustSatisfySynchronizationTolerance();
-
-    return 0;
+    denyHeap=true;
+    ClockSynchronizationProfile profile;
+    for (int ppm:std::array<int,3>{0,20,-20}) {
+        ClockRegression<8> regression;
+        constexpr std::uint64_t epoch=UINT64_MAX-20000000000ull;
+        for (unsigned i=0;i<12;++i) {
+            const std::uint64_t elapsed=i*1000000000ull;
+            const auto y=1000+static_cast<std::int64_t>(i)*ppm*1000;
+            regression.Add({epoch+elapsed,y,y,ClockUncertainty::Known(100+i*10),true});
+            const auto fit=regression.Calculate(profile); assert(fit.Valid);
+            if (i>0) assert(std::fabs(fit.Slope*1000000-ppm)<0.000001);
+            assert(std::fabs(fit.Intercept-y)<0.001);
+        }
+        assert(regression.Size()==8);
+    }
+    ClockDiscipline<8> discipline;
+    assert(discipline.SelectReference(1,0)==ClockConfigurationStatus::Success);
+    assert(discipline.TryRebase(0,0)==ClockConfigurationStatus::Success);
+    discipline.SealContinuity();
+    for (unsigned i=0;i<8;++i) {
+        const auto now=1000000000ull+i*250000000ull;
+        auto model=discipline.Model();
+        auto observation=ClockTest::Observation(now,1000,10000,1,100,&model);
+        const auto before=discipline.Model().Evaluate(now+10000);
+        const auto result=discipline.Submit(observation,now+10000);
+        assert(result.Accepted && discipline.Model().Evaluate(now+10000)==before);
+        if (i<3) assert(discipline.GetStatus(now+10000).Reliability==TimeReliability::Acquiring);
+    }
+    const auto anchor=discipline.Model().AnchorMonotonic;
+    auto status=discipline.GetStatus(anchor);
+    assert(status.Reliability==TimeReliability::Synchronized && status.CurrentUncertainty.Nanoseconds<=500000);
+    const auto deadline=status.NextRequiredSynchronizationMonotonic;
+    assert(deadline>anchor && deadline-anchor!=1000000000ull);
+    const auto uncertainty=status.CurrentUncertainty.Nanoseconds;
+    assert(discipline.GetStatus(anchor+1000000).CurrentUncertainty.Nanoseconds>=uncertainty);
+    discipline.SetActivity(true,false,anchor);
+    assert(discipline.GetStatus(anchor).Reliability==TimeReliability::Holdover);
+    assert(discipline.GetStatus(anchor+30000000000ull).Reliability==TimeReliability::Acquiring);
+    discipline.SetActivity(false,false,anchor);
+    assert(discipline.GetStatus(anchor+30000000000ull).Reliability==TimeReliability::Unqualified);
+    const auto old=discipline.Model().Evaluate(anchor);
+    assert(discipline.TryRebase(0,anchor)==ClockConfigurationStatus::ContinuitySealed && discipline.Model().Evaluate(anchor)==old);
+    assert(discipline.SelectReference(2,anchor)==ClockConfigurationStatus::Success && discipline.Model().Evaluate(anchor)==old);
+    assert(discipline.GetStatus(anchor).Reliability==TimeReliability::Acquiring && discipline.GetStatus(anchor).RetainedSamples==0);
+    assert(discipline.Submit(ClockTest::Observation(anchor+1000000),anchor+1010000).Rejection==ClockObservationRejection::ReferenceMismatch);
+    // Separate rounding of two negative rate terms must never cause a one-nanosecond backward step.
+    ClockModelSnapshot model; model.AnchorTime=1000000; model.FrequencyPartsPerBillion=-2000000;
+    model.SlewPartsPerBillion=500000; model.PendingPhaseNanoseconds=-1000;
+    auto previous=model.Evaluate(0);
+    for (std::uint64_t n=1;n<2200000;++n) { const auto next=model.Evaluate(n); assert(next>=previous); previous=next; }
+    assert(model.PendingPhase(2200000)==0);
 }

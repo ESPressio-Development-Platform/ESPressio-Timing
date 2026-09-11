@@ -1,55 +1,32 @@
-#include <cassert>
-#include <cstdint>
-
 #include <ESPressio_ClockSynchronization.hpp>
-
+#include "ClockTestEvidence.hpp"
+#include <cassert>
 using namespace ESPressio::Timing;
-
 int main() {
-    constexpr std::uint64_t maximumRoundTripDelay = 1000000ULL;
-
-    ClockSynchronizationSample<std::uint64_t> accepted{};
-    accepted.LocalRequestTransmitTime = 1000000ULL;
-    accepted.RemoteRequestReceiveTime = 1200000ULL;
-    accepted.RemoteResponseTransmitTime = 1250000ULL;
-    accepted.LocalResponseReceiveTime = 1600000ULL;
-    auto validation = ValidateClockSynchronizationSample(accepted, maximumRoundTripDelay);
-    assert(validation.Accepted());
-    assert(validation.LocalElapsedNanoseconds == 600000ULL);
-    assert(validation.RemoteProcessingElapsedNanoseconds == 50000ULL);
-    assert(validation.RoundTripDelayNanoseconds == 550000ULL);
-
-    auto invalidOrder = accepted;
-    invalidOrder.LocalResponseReceiveTime = invalidOrder.LocalRequestTransmitTime - 1ULL;
-    validation = ValidateClockSynchronizationSample(invalidOrder, maximumRoundTripDelay);
-    assert(!validation.Accepted());
-    assert(validation.RejectionReason ==
-           ClockSynchronizationSampleRejectionReason::InvalidTimestampOrder);
-
-    auto impossibleProcessing = accepted;
-    impossibleProcessing.LocalResponseReceiveTime = 1200000ULL;
-    impossibleProcessing.RemoteRequestReceiveTime = 1200000ULL;
-    impossibleProcessing.RemoteResponseTransmitTime = 1500000ULL;
-    validation = ValidateClockSynchronizationSample(impossibleProcessing, maximumRoundTripDelay);
-    assert(!validation.Accepted());
-    assert(validation.RejectionReason ==
-           ClockSynchronizationSampleRejectionReason::RemoteProcessingExceedsLocalElapsed);
-    assert(validation.LocalElapsedNanoseconds == 200000ULL);
-    assert(validation.RemoteProcessingElapsedNanoseconds == 300000ULL);
-
-    auto excessiveDelay = accepted;
-    excessiveDelay.LocalResponseReceiveTime = 2600000ULL;
-    excessiveDelay.RemoteRequestReceiveTime = 1200000ULL;
-    excessiveDelay.RemoteResponseTransmitTime = 1250000ULL;
-    validation = ValidateClockSynchronizationSample(excessiveDelay, maximumRoundTripDelay);
-    assert(!validation.Accepted());
-    assert(validation.RejectionReason ==
-           ClockSynchronizationSampleRejectionReason::RoundTripDelayExceeded);
-    assert(validation.RoundTripDelayNanoseconds == 1550000ULL);
-
-    validation = ValidateClockSynchronizationSample(excessiveDelay, 0U);
-    assert(validation.Accepted());
-    assert(validation.RoundTripDelayNanoseconds == 1550000ULL);
-
-    return 0;
+    ClockSynchronizationProfile profile; profile.MaximumAcceptedRoundTripDelayNanoseconds=1000000;
+    auto o=ClockTest::Observation(1000000,450,100,1,5);
+    auto result=ValidateClockSynchronizationObservation(o,profile);
+    assert(result.Accepted() && result.MeasuredOffsetNanoseconds==450 && result.RoundTripDelayNanoseconds==100);
+    assert(result.Uncertainty.IsKnown && result.Uncertainty.Nanoseconds==65); // 5 + ceil(100/2) + ceil(20/2)
+    auto bad=o; bad.T4.SystemTimeNanoseconds=o.T1.SystemTimeNanoseconds-1;
+    assert(ValidateClockSynchronizationObservation(bad,profile).Rejection==ClockObservationRejection::InvalidTimestampOrder);
+    bad=o; bad.T3.SystemTimeNanoseconds=bad.T2.SystemTimeNanoseconds+200;
+    assert(ValidateClockSynchronizationObservation(bad,profile).Rejection==ClockObservationRejection::RemoteProcessingExceedsLocalElapsed);
+    bad=o; bad.T4.SystemTimeNanoseconds+=1000000;
+    assert(ValidateClockSynchronizationObservation(bad,profile).Rejection==ClockObservationRejection::RoundTripDelayExceeded);
+    bad=o; bad.ReferenceIdentity=0;
+    assert(ValidateClockSynchronizationObservation(bad,profile).Rejection==ClockObservationRejection::InvalidReference);
+    bad=o; bad.T1.Quality=ClockCaptureQuality::Invalid;
+    assert(ValidateClockSynchronizationObservation(bad,profile).Rejection==ClockObservationRejection::InvalidCaptureQuality);
+    bad=o; bad.T1.Quality=ClockCaptureQuality::SoftwareUnbounded;
+    result=ValidateClockSynchronizationObservation(bad,profile); assert(result.Accepted() && !result.Uncertainty.IsKnown);
+    bad=o; bad.T1.Uncertainty.Nanoseconds=profile.MaximumCaptureUncertaintyNanoseconds+1;
+    assert(ValidateClockSynchronizationObservation(bad,profile).Rejection==ClockObservationRejection::CaptureUncertaintyExceeded);
+    bad=o; bad.ReferenceUncertainty=ClockUncertainty::Known(UINT64_MAX);
+    assert(ValidateClockSynchronizationObservation(bad,profile).Rejection==ClockObservationRejection::NumericOverflow);
+    o.HasCalibratedAsymmetryBound=true; o.CalibratedAsymmetryBoundNanoseconds=7;
+    assert(ValidateClockSynchronizationObservation(o,profile).Uncertainty.Nanoseconds==22);
+    assert(ClockMath::Average(1,-2)==0 && ClockMath::Average(-1,2)==0);
+    assert(ClockMath::Average(INT64_MAX,INT64_MAX)==INT64_MAX && ClockMath::Average(INT64_MIN,INT64_MIN)==INT64_MIN);
+    profile.MaximumAcceptedRoundTripDelayNanoseconds=0; assert(!profile.IsValid(8));
 }

@@ -3,7 +3,7 @@
 
 using namespace ESPressio::Timing;
 
-StopwatchClock stopwatch(true);
+StopwatchClock<> stopwatch(true);
 
 void setup() {
     Serial.begin(115200);

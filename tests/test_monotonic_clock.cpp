@@ -41,7 +41,7 @@ int main() {
 
     // Moving the distributed/settable SystemClock forward must not move the
     // independent monotonic scheduling timeline.
-    systemClock.SetTime(DefaultClockTime(175, Units::Base));
+    systemClock.TrySetTime(DefaultClockTime(175, Units::Base));
     const auto monotonicAfterForwardStep = Nanoseconds(monotonicClock.GetTime());
     assert(monotonicAfterForwardStep == monotonicAtOneSecond);
 
@@ -50,7 +50,7 @@ int main() {
     assert(monotonicAfterElapsedTime == monotonicAtOneSecond + 250000ULL);
 
     // A backward SystemClock step must likewise have no effect on elapsed time.
-    systemClock.SetTime(DefaultClockTime(1, Units::Base));
+    systemClock.TrySetTime(DefaultClockTime(1, Units::Base));
     assert(Nanoseconds(monotonicClock.GetTime()) == monotonicAfterElapsedTime);
 
     source.Ticks += 750ULL;
@@ -61,5 +61,9 @@ int main() {
     auto& sharedMonotonic = MonotonicClock<>::GetInstance();
     assert(sharedMonotonic.GetTimeSource() == HighResolutionTimeSource::GetInstance());
 
+    // The one-way seal is shared and blocks every subsequent hard rebase.
+    systemClock.SealContinuity();
+    assert(systemClock.TrySetTime(DefaultClockTime(0, Units::Nano)) == ClockConfigurationStatus::ContinuitySealed);
+    assert(Nanoseconds(monotonicClock.GetTime()) == monotonicAtOneSecond + 1000000ULL);
     return 0;
 }

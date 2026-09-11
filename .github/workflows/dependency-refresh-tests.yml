@@ -7,7 +7,7 @@ on:
       - 'feature/**'
       - 'optimisation/**'
       - 'bugfix/**'
-      - 'structural_realignment*'
+      - primitives_redesign
   pull_request:
     branches:
       - main
@@ -22,12 +22,24 @@ jobs:
           repository: ESPressio-Development-Platform/ESPressio-System
           ref: primitives_redesign
           path: deps/ESPressio-System
+      - uses: actions/checkout@v4
+        with:
+          repository: ESPressio-Development-Platform/ESPressio-Units
+          ref: primitives_redesign
+          path: deps/ESPressio-Units
+      - uses: actions/checkout@v4
+        with:
+          repository: ESPressio-Development-Platform/ESPressio-Observable
+          ref: primitives_redesign
+          path: deps/ESPressio-Observable
       - name: Configure
         run: cmake -S tests -B build -DCMAKE_CXX_FLAGS="-I$GITHUB_WORKSPACE/deps/ESPressio-System/src"
       - name: Build
         run: cmake --build build --parallel
       - name: Test
         run: ctest --test-dir build --output-on-failure
+      - name: Public headers, README, negative contracts and actual dependency runtime
+        run: python tests/validate_public_surface.py --dependencies deps
 
   esp32-compile:
     runs-on: ubuntu-latest
@@ -61,7 +73,7 @@ jobs:
           mkdir -p project/compile/src
           cat > project/compile/platformio.ini <<'EOF'
           [env:esp32]
-          platform = espressif32
+          platform = https://github.com/pioarduino/platform-espressif32/releases/download/55.03.311/platform-espressif32.zip
           board = esp32dev
           framework = arduino
           build_flags =
@@ -86,6 +98,15 @@ jobs:
           void setup() {
               auto& systemClock = ESPressio::Timing::SystemClock<>::GetInstance();
               auto& monotonicClock = ESPressio::Timing::MonotonicClock<>::GetInstance();
+              ESPressio::Timing::ClockSynchronizationProfile profile;
+              (void)systemClock.ConfigureSynchronization(profile);
+              (void)systemClock.SelectSynchronizationReference(1);
+              systemClock.SealContinuity();
+              (void)systemClock.CaptureSynchronizationTimestamp();
+              (void)systemClock.CaptureQualifiedTime();
+              ESPressio::Timing::ClockSynchronizationObservation<> observation;
+              (void)systemClock.SubmitSynchronizationObservation(observation);
+              (void)systemClock.GetSynchronizationStatus();
               (void)systemClock.GetTime();
               (void)monotonicClock.GetTime();
               (void)monotonicClock.GetResolution();
@@ -133,7 +154,7 @@ jobs:
           mkdir -p project/compile/src
           cat > project/compile/platformio.ini <<'EOF'
           [env:esp32]
-          platform = espressif32
+          platform = https://github.com/pioarduino/platform-espressif32/releases/download/55.03.311/platform-espressif32.zip
           board = esp32dev
           framework = arduino
           build_flags =

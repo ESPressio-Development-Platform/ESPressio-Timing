@@ -3,9 +3,9 @@
 
 using namespace ESPressio::Timing;
 
-// On a compatible ESP32 this uses the shared default GPTimer automatically.
-// It falls back to esp_timer if the hardware timer cannot be initialized.
-StopwatchClock stopwatch(true);
+// Install System providers before constructing clock services in the composition application.
+// The shared source uses its generic counter provider or the System monotonic fallback.
+StopwatchClock<> stopwatch(true);
 
 void setup() {
     Serial.begin(115200);
@@ -15,7 +15,7 @@ void setup() {
 
     Serial.print("Default source: ");
     Serial.println(
-        source->GetIsUsingGPTimer()
+        source->GetIsUsingHighResolutionCounter()
             ? "GPTimer"
             : "framework monotonic timer"
     );

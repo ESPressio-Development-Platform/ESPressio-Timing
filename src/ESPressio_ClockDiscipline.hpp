@@ -1,812 +1,177 @@
 #pragma once
-
 #include <algorithm>
-#include <array>
 #include <cmath>
 #include <cstdint>
 #include <limits>
-
-#include "ESPressio_ClockSynchronization.hpp"
-
-namespace ESPressio {
-
-    namespace Timing {
-
-        namespace Internal {
-
-            inline int64_t SaturatingSignedDifference(
-                uint64_t left,
-                uint64_t right
-            ) {
-                if (left >= right) {
-                    const uint64_t difference =
-                        left - right;
-
-                    return
-                        difference >
-                            static_cast<uint64_t>(
-                                std::numeric_limits<int64_t>::max()
-                            )
-                            ? std::numeric_limits<int64_t>::max()
-                            : static_cast<int64_t>(
-                                difference
-                            );
-                }
-
-                const uint64_t difference =
-                    right - left;
-
-                if (
-                    difference >
-                    static_cast<uint64_t>(
-                        std::numeric_limits<int64_t>::max()
-                    )
-                ) {
-                    return
-                        std::numeric_limits<int64_t>::min();
-                }
-
-                return
-                    -static_cast<int64_t>(
-                        difference
-                    );
-            }
-
-
-            inline int64_t SaturatingSignedAdd(
-                int64_t left,
-                int64_t right
-            ) {
-                if (
-                    right > 0 &&
-                    left >
-                        std::numeric_limits<int64_t>::max() -
-                        right
-                ) {
-                    return
-                        std::numeric_limits<int64_t>::max();
-                }
-
-                if (
-                    right < 0 &&
-                    left <
-                        std::numeric_limits<int64_t>::min() -
-                        right
-                ) {
-                    return
-                        std::numeric_limits<int64_t>::min();
-                }
-
-                return left + right;
-            }
-
-
-            inline int64_t SaturatingSignedSubtract(
-                int64_t left,
-                int64_t right
-            ) {
-                if (
-                    right > 0 &&
-                    left <
-                        std::numeric_limits<int64_t>::min() +
-                        right
-                ) {
-                    return
-                        std::numeric_limits<int64_t>::min();
-                }
-
-                if (
-                    right < 0 &&
-                    left >
-                        std::numeric_limits<int64_t>::max() +
-                        right
-                ) {
-                    return
-                        std::numeric_limits<int64_t>::max();
-                }
-
-                return left - right;
-            }
-
-
-            inline uint64_t AbsoluteSignedValue(
-                int64_t value
-            ) {
-                if (value >= 0) {
-                    return static_cast<uint64_t>(value);
-                }
-
-                if (
-                    value ==
-                    std::numeric_limits<int64_t>::min()
-                ) {
-                    return
-                        static_cast<uint64_t>(
-                            std::numeric_limits<int64_t>::max()
-                        ) +
-                        1ULL;
-                }
-
-                return
-                    static_cast<uint64_t>(
-                        -value
-                    );
-            }
-
-
-            template<typename TTick>
-            inline TTick ApplySignedTickCorrection(
-                TTick value,
-                int64_t correction
-            ) {
-                if (correction >= 0) {
-                    const uint64_t positive =
-                        static_cast<uint64_t>(
-                            correction
-                        );
-
-                    return
-                        positive >
-                            static_cast<uint64_t>(
-                                std::numeric_limits<TTick>::max() -
-                                value
-                            )
-                            ? std::numeric_limits<TTick>::max()
-                            : static_cast<TTick>(
-                                value +
-                                static_cast<TTick>(
-                                    positive
-                                )
-                              );
-                }
-
-                const uint64_t magnitude =
-                    correction ==
-                        std::numeric_limits<int64_t>::min()
-                        ? static_cast<uint64_t>(
-                            std::numeric_limits<int64_t>::max()
-                          ) +
-                          1ULL
-                        : static_cast<uint64_t>(
-                            -correction
-                          );
-
-                return
-                    magnitude >
-                        static_cast<uint64_t>(
-                            value
-                        )
-                        ? 0
-                        : static_cast<TTick>(
-                            value -
-                            static_cast<TTick>(
-                                magnitude
-                            )
-                          );
-            }
-
-
-            inline double NormalizeFilterWeight(
-                double value
-            ) {
-                if (value <= 0.0) {
-                    return 1.0;
-                }
-
-                return
-                    value > 1.0
-                        ? 1.0
-                        : value;
-            }
-
-
-            inline double ClampDriftPpm(
-                double value,
-                double maximumAbsolute
-            ) {
-                if (maximumAbsolute <= 0.0) {
-                    return 0.0;
-                }
-
-                return
-                    std::max(
-                        -maximumAbsolute,
-                        std::min(
-                            maximumAbsolute,
-                            value
-                        )
-                    );
-            }
-
-
-            inline uint32_t ClampSlewRatePpm(
-                uint32_t value
-            ) {
-                /*
-                 * Keep the maximum phase rate far below 1,000,000 ppm so a
-                 * negative slew can never make a normally progressing raw
-                 * clock run backwards.
-                 */
-                return
-                    std::min<uint32_t>(
-                        value,
-                        100000U
-                    );
-            }
-
-        }
-
-
-        /*
-         * Transport-independent clock discipline.
-         *
-         * It performs:
-         *   - NTP-style four-timestamp offset/delay calculation;
-         *   - malformed/high-delay sample rejection;
-         *   - filtered phase estimation;
-         *   - conservative residual drift estimation;
-         *   - monotonic phase slewing;
-         *   - continuous learned rate correction.
-         *
-         * No network/radio concepts are present here.
-         */
-
-template<typename TTick = ClockTick>
-        class ClockDiscipline {
-            private:
-                ClockSynchronizationConfig
-                    _config;
-
-                bool _hasAcceptedSample = false;
-                bool _hasFilteredOffset = false;
-
-
-struct ClockFilterSample {
-                    int64_t OffsetNanoseconds = 0;
-                    uint64_t RoundTripDelayNanoseconds = 0;
-                    int64_t AppliedCorrectionNanoseconds = 0;
-                };
-
-                static constexpr std::size_t MaximumClockFilterSamples = 8;
-                std::array<ClockFilterSample, MaximumClockFilterSamples> _clockFilter{};
-                uint8_t _clockFilterCount = 0;
-                uint8_t _clockFilterWriteIndex = 0;
-
-                int64_t _lastMeasuredOffsetNanoseconds = 0;
-                int64_t _filteredOffsetNanoseconds = 0;
-                uint64_t _lastRoundTripDelayNanoseconds = 0;
-
-                uint32_t _acceptedSampleCount = 0;
-                uint32_t _rejectedSampleCount = 0;
-
-                // Synchronization readiness is scoped to the current continuous clock coordinate system. A hard phase
-                // step invalidates historical phase evidence even though lifetime diagnostic counters remain intact.
-                uint32_t _synchronizationEvidenceSampleCount = 0;
-
-                TTick _lastAcceptedSampleLocalTime = 0;
-
-                bool _hasPreviousDriftSample = false;
-                int64_t _previousDriftOffsetNanoseconds = 0;
-                TTick _previousDriftSampleLocalTime = 0;
-
-                double _estimatedDriftPpm = 0.0;
-
-                int64_t _pendingPhaseCorrectionNanoseconds = 0;
-                int64_t _appliedCorrectionNanoseconds = 0;
-
-                bool _advanceInitialized = false;
-                TTick _lastAdvanceRawTime = 0;
-
-                double _phaseFractionNanoseconds = 0.0;
-                double _frequencyFractionNanoseconds = 0.0;
-
-
-                static bool CalculateSample(
-                    const ClockSynchronizationSample<TTick>& sample,
-                    int64_t& offsetNanoseconds,
-                    uint64_t& roundTripDelayNanoseconds
-                ) {
-                    if (
-                        sample.LocalResponseReceiveTime <
-                            sample.LocalRequestTransmitTime ||
-                        sample.RemoteResponseTransmitTime <
-                            sample.RemoteRequestReceiveTime
-                    ) {
-                        return false;
-                    }
-
-                    const uint64_t localElapsed =
-                        static_cast<uint64_t>(
-                            sample.LocalResponseReceiveTime -
-                            sample.LocalRequestTransmitTime
-                        );
-
-                    const uint64_t remoteProcessingElapsed =
-                        static_cast<uint64_t>(
-                            sample.RemoteResponseTransmitTime -
-                            sample.RemoteRequestReceiveTime
-                        );
-
-                    if (
-                        remoteProcessingElapsed >
-                        localElapsed
-                    ) {
-                        return false;
-                    }
-
-                    roundTripDelayNanoseconds =
-                        localElapsed -
-                        remoteProcessingElapsed;
-
-                    const int64_t remoteReceiveMinusLocalSend =
-                        Internal::SaturatingSignedDifference(
-                            static_cast<uint64_t>(sample.RemoteRequestReceiveTime),
-                            static_cast<uint64_t>(sample.LocalRequestTransmitTime));
-
-                    const int64_t remoteSendMinusLocalReceive =
-                        Internal::SaturatingSignedDifference(
-                            static_cast<uint64_t>(sample.RemoteResponseTransmitTime),
-                            static_cast<uint64_t>(sample.LocalResponseReceiveTime));
-
-                    const int64_t summed =
-                        Internal::SaturatingSignedAdd(
-                            remoteReceiveMinusLocalSend,
-                            remoteSendMinusLocalReceive);
-
-                    offsetNanoseconds = summed / 2;
-                    return true;
-                }
-
-
-                void UpdateFilteredOffset(
-                    int64_t measuredOffset
-                ) {
-                    const double weight =
-                        Internal::NormalizeFilterWeight(_config.OffsetFilterWeight);
-
-                    if (!_hasFilteredOffset) {
-                        _filteredOffsetNanoseconds = measuredOffset;
-                        _hasFilteredOffset = true;
-                        return;
-                    }
-
-                    const double filtered =
-                        (1.0 - weight) * static_cast<double>(_filteredOffsetNanoseconds) +
-                        weight * static_cast<double>(measuredOffset);
-
-                    if (filtered >= static_cast<double>(std::numeric_limits<int64_t>::max())) {
-                        _filteredOffsetNanoseconds = std::numeric_limits<int64_t>::max();
-                    } else if (filtered <= static_cast<double>(std::numeric_limits<int64_t>::min())) {
-                        _filteredOffsetNanoseconds = std::numeric_limits<int64_t>::min();
-                    } else {
-                        _filteredOffsetNanoseconds = static_cast<int64_t>(std::llround(filtered));
-                    }
-                }
-
-
-                int64_t SelectMinimumDelayOffset(
-                    int64_t measuredOffset,
-                    uint64_t roundTripDelay,
-                    bool& currentSampleSelected
-                ) {
-                    const uint8_t window =
-                        std::max<uint8_t>(
-                            1,
-                            std::min<uint8_t>(
-                                static_cast<uint8_t>(MaximumClockFilterSamples),
-                                _config.ClockFilterWindowSamples));
-
-                    const uint8_t insertedIndex = _clockFilterWriteIndex;
-                    _clockFilter[insertedIndex] = {
-                        measuredOffset,
-                        roundTripDelay,
-                        _appliedCorrectionNanoseconds
-                    };
-                    _clockFilterWriteIndex = static_cast<uint8_t>((insertedIndex + 1U) % window);
-                    if (_clockFilterCount < window) ++_clockFilterCount;
-
-                    uint8_t selectedIndex = insertedIndex;
-                    uint64_t selectedDelay = roundTripDelay;
-                    for (uint8_t index = 0; index < _clockFilterCount; ++index) {
-                        const auto& candidate = _clockFilter[index];
-                        if (candidate.RoundTripDelayNanoseconds < selectedDelay) {
-                            selectedDelay = candidate.RoundTripDelayNanoseconds;
-                            selectedIndex = index;
-                        }
-                    }
-
-                    currentSampleSelected = selectedIndex == insertedIndex;
-                    const auto& selected = _clockFilter[selectedIndex];
-                    const int64_t correctionSinceSample =
-                        Internal::SaturatingSignedSubtract(
-                            _appliedCorrectionNanoseconds,
-                            selected.AppliedCorrectionNanoseconds);
-                    return Internal::SaturatingSignedSubtract(
-                        selected.OffsetNanoseconds,
-                        correctionSinceSample);
-                }
-
-
-                void TryLearnDrift(
-                    TTick localSampleTime,
-                    int64_t measuredOffset
-                ) {
-                    const uint64_t phaseThreshold =
-                        _config.DriftLearningPhaseThresholdNanoseconds;
-
-                    if (
-                        Internal::AbsoluteSignedValue(_pendingPhaseCorrectionNanoseconds) > phaseThreshold ||
-                        Internal::AbsoluteSignedValue(measuredOffset) > phaseThreshold
-                    ) {
-                        _hasPreviousDriftSample = false;
-                        return;
-                    }
-
-                    if (!_hasPreviousDriftSample) {
-                        _previousDriftOffsetNanoseconds = measuredOffset;
-                        _previousDriftSampleLocalTime = localSampleTime;
-                        _hasPreviousDriftSample = true;
-                        return;
-                    }
-
-                    if (localSampleTime <= _previousDriftSampleLocalTime) {
-                        _hasPreviousDriftSample = false;
-                        return;
-                    }
-
-                    const uint64_t interval =
-                        static_cast<uint64_t>(localSampleTime - _previousDriftSampleLocalTime);
-
-                    if (interval < _config.MinimumDriftLearningIntervalNanoseconds) return;
-
-                    const int64_t signedOffsetChange =
-                        Internal::SaturatingSignedSubtract(
-                            measuredOffset,
-                            _previousDriftOffsetNanoseconds);
-
-                    const double residualDriftPpm =
-                        (static_cast<double>(signedOffsetChange) /
-                         static_cast<double>(interval)) * 1000000.0;
-
-                    double measuredDriftPpm = _estimatedDriftPpm + residualDriftPpm;
-                    measuredDriftPpm = Internal::ClampDriftPpm(
-                        measuredDriftPpm,
-                        _config.MaximumDriftCorrectionPpm);
-
-                    const double weight =
-                        Internal::NormalizeFilterWeight(_config.DriftFilterWeight);
-
-                    _estimatedDriftPpm =
-                        (1.0 - weight) * _estimatedDriftPpm +
-                        weight * measuredDriftPpm;
-
-                    _estimatedDriftPpm = Internal::ClampDriftPpm(
-                        _estimatedDriftPpm,
-                        _config.MaximumDriftCorrectionPpm);
-
-                    _previousDriftOffsetNanoseconds = measuredOffset;
-                    _previousDriftSampleLocalTime = localSampleTime;
-                }
-
-
-                int64_t ConsumeWholeCorrection(
-                    double& fractional,
-                    double correction
-                ) {
-                    fractional += correction;
-
-                    if (fractional > -1.0 && fractional < 1.0) return 0;
-
-                    const double whole =
-                        fractional >= 0.0 ? std::floor(fractional) : std::ceil(fractional);
-
-                    fractional -= whole;
-
-                    if (whole >= static_cast<double>(std::numeric_limits<int64_t>::max())) {
-                        return std::numeric_limits<int64_t>::max();
-                    }
-                    if (whole <= static_cast<double>(std::numeric_limits<int64_t>::min())) {
-                        return std::numeric_limits<int64_t>::min();
-                    }
-                    return static_cast<int64_t>(whole);
-                }
-
-
-            public:
-                explicit ClockDiscipline(
-                    const ClockSynchronizationConfig& config = ClockSynchronizationConfig()
-                ) : _config(config) {
-                    Configure(config);
-                }
-
-
-                void Configure(
-                    const ClockSynchronizationConfig& config
-                ) {
-                    const uint8_t previousClockFilterWindow = _config.ClockFilterWindowSamples;
-                    _config = config;
-
-                    _config.MaximumSlewRatePpm =
-                        Internal::ClampSlewRatePpm(_config.MaximumSlewRatePpm);
-
-                    _config.MaximumDriftCorrectionPpm =
-                        std::max(0.0, std::min(100000.0, _config.MaximumDriftCorrectionPpm));
-
-                    _config.ClockFilterWindowSamples =
-                        std::max<uint8_t>(
-                            1,
-                            std::min<uint8_t>(
-                                static_cast<uint8_t>(MaximumClockFilterSamples),
-                                _config.ClockFilterWindowSamples));
-
-                    if (_config.ClockFilterWindowSamples != previousClockFilterWindow) {
-                        _clockFilter = {};
-                        _clockFilterCount = 0;
-                        _clockFilterWriteIndex = 0;
-                    }
-                }
-
-
-                const ClockSynchronizationConfig& GetConfig() const {
-                    return _config;
-                }
-
-
-                void Reset(bool preserveConfiguration = true) {
-                    const ClockSynchronizationConfig configuration = _config;
-                    *this = ClockDiscipline<TTick>();
-                    if (preserveConfiguration) Configure(configuration);
-                }
-
-
-                ClockSynchronizationResult<TTick> SubmitSample(
-                    const ClockSynchronizationSample<TTick>& sample
-                ) {
-                    ClockSynchronizationResult<TTick> result;
-
-                    int64_t measuredOffset = 0;
-                    uint64_t roundTripDelay = 0;
-
-                    if (
-                        !CalculateSample(sample, measuredOffset, roundTripDelay) ||
-                        (_config.MaximumRoundTripDelayNanoseconds > 0 &&
-                         roundTripDelay > _config.MaximumRoundTripDelayNanoseconds)
-                    ) {
-                        ++_rejectedSampleCount;
-                        result.RejectedSampleCount = _rejectedSampleCount;
-                        result.AcceptedSampleCount = _acceptedSampleCount;
-                        result.EstimatedDriftPpm = _estimatedDriftPpm;
-                        return result;
-                    }
-
-                    const bool phaseWasSettled = _pendingPhaseCorrectionNanoseconds == 0;
-
-                    bool currentSampleSelected = false;
-                    const int64_t clockFilterOffset =
-                        SelectMinimumDelayOffset(
-                            measuredOffset,
-                            roundTripDelay,
-                            currentSampleSelected);
-
-                    if (!_hasFilteredOffset) {
-                        _filteredOffsetNanoseconds = clockFilterOffset;
-                        _hasFilteredOffset = true;
-                    } else {
-                        UpdateFilteredOffset(clockFilterOffset);
-                    }
-
-                    if (phaseWasSettled && currentSampleSelected) {
-                        TryLearnDrift(sample.LocalResponseReceiveTime, clockFilterOffset);
-                    } else {
-                        _hasPreviousDriftSample = false;
-                    }
-
-                    _lastMeasuredOffsetNanoseconds = measuredOffset;
-                    _lastRoundTripDelayNanoseconds = roundTripDelay;
-                    _lastAcceptedSampleLocalTime = sample.LocalResponseReceiveTime;
-                    _hasAcceptedSample = true;
-
-                    ++_acceptedSampleCount;
-                    if (_synchronizationEvidenceSampleCount != std::numeric_limits<uint32_t>::max()) {
-                        ++_synchronizationEvidenceSampleCount;
-                    }
-
-                    _pendingPhaseCorrectionNanoseconds = _filteredOffsetNanoseconds;
-
-                    result.Accepted = true;
-                    result.MeasuredOffsetNanoseconds = measuredOffset;
-                    result.FilteredOffsetNanoseconds = _filteredOffsetNanoseconds;
-                    result.RoundTripDelayNanoseconds = roundTripDelay;
-                    result.EstimatedDriftPpm = _estimatedDriftPpm;
-                    result.AcceptedSampleCount = _acceptedSampleCount;
-                    result.RejectedSampleCount = _rejectedSampleCount;
-                    return result;
-                }
-
-
-                void ApplyStep(
-                    int64_t correctionNanoseconds
-                ) {
-                    _appliedCorrectionNanoseconds =
-                        Internal::SaturatingSignedAdd(
-                            _appliedCorrectionNanoseconds,
-                            correctionNanoseconds);
-
-                    // A hard step changes the public clock coordinate system discontinuously. No historical phase
-                    // observation captured before the step may remain eligible for the post-step minimum-delay filter,
-                    // otherwise a stale pre-step sample can mask real multi-millisecond residual error for minutes.
-                    _clockFilter = {};
-                    _clockFilterCount = 0;
-                    _clockFilterWriteIndex = 0;
-                    _hasFilteredOffset = false;
-
-                    _pendingPhaseCorrectionNanoseconds = 0;
-                    _filteredOffsetNanoseconds = 0;
-                    _lastMeasuredOffsetNanoseconds = 0;
-                    _phaseFractionNanoseconds = 0.0;
-
-                    // Preserve lifetime accepted/rejected statistics, but reset readiness evidence to the step-causing
-                    // accepted sample. The next accepted post-step sample must therefore establish the first real
-                    // residual phase observation; with the default minimum of two samples it can immediately prevent a
-                    // false Synchronized state when the residual lies outside tolerance.
-                    _synchronizationEvidenceSampleCount = _hasAcceptedSample ? 1U : 0U;
-
-                    if (_hasAcceptedSample) {
-                        _lastAcceptedSampleLocalTime =
-                            Internal::ApplySignedTickCorrection(
-                                _lastAcceptedSampleLocalTime,
-                                correctionNanoseconds);
-                    }
-
-                    if (_hasPreviousDriftSample) {
-                        _previousDriftSampleLocalTime =
-                            Internal::ApplySignedTickCorrection(
-                                _previousDriftSampleLocalTime,
-                                correctionNanoseconds);
-                    }
-
-                    _hasPreviousDriftSample = false;
-                }
-
-
-                void Advance(
-                    TTick rawTime
-                ) {
-                    if (!_advanceInitialized) {
-                        _lastAdvanceRawTime = rawTime;
-                        _advanceInitialized = true;
-                        return;
-                    }
-
-                    if (rawTime <= _lastAdvanceRawTime) {
-                        _lastAdvanceRawTime = rawTime;
-                        return;
-                    }
-
-                    const uint64_t elapsed =
-                        static_cast<uint64_t>(rawTime - _lastAdvanceRawTime);
-                    _lastAdvanceRawTime = rawTime;
-
-                    const double frequencyCorrection =
-                        (static_cast<double>(elapsed) * _estimatedDriftPpm) / 1000000.0;
-                    const int64_t wholeFrequencyCorrection =
-                        ConsumeWholeCorrection(_frequencyFractionNanoseconds, frequencyCorrection);
-
-                    int64_t wholePhaseCorrection = 0;
-                    if (_pendingPhaseCorrectionNanoseconds != 0 && _config.MaximumSlewRatePpm > 0) {
-                        const double maximumPhaseCorrection =
-                            (static_cast<double>(elapsed) *
-                             static_cast<double>(Internal::ClampSlewRatePpm(_config.MaximumSlewRatePpm))) /
-                            1000000.0;
-
-                        double desiredPhaseCorrection =
-                            _pendingPhaseCorrectionNanoseconds > 0
-                                ? maximumPhaseCorrection
-                                : -maximumPhaseCorrection;
-
-                        if (std::fabs(desiredPhaseCorrection) >
-                            static_cast<double>(Internal::AbsoluteSignedValue(
-                                _pendingPhaseCorrectionNanoseconds))) {
-                            desiredPhaseCorrection =
-                                static_cast<double>(_pendingPhaseCorrectionNanoseconds);
-                        }
-
-                        wholePhaseCorrection =
-                            ConsumeWholeCorrection(_phaseFractionNanoseconds, desiredPhaseCorrection);
-
-                        if (wholePhaseCorrection != 0) {
-                            if ((_pendingPhaseCorrectionNanoseconds > 0 &&
-                                 wholePhaseCorrection > _pendingPhaseCorrectionNanoseconds) ||
-                                (_pendingPhaseCorrectionNanoseconds < 0 &&
-                                 wholePhaseCorrection < _pendingPhaseCorrectionNanoseconds)) {
-                                wholePhaseCorrection = _pendingPhaseCorrectionNanoseconds;
-                            }
-                            _pendingPhaseCorrectionNanoseconds -= wholePhaseCorrection;
-                        }
-                    }
-
-                    const int64_t totalCorrection =
-                        Internal::SaturatingSignedAdd(
-                            wholeFrequencyCorrection,
-                            wholePhaseCorrection);
-                    _appliedCorrectionNanoseconds =
-                        Internal::SaturatingSignedAdd(
-                            _appliedCorrectionNanoseconds,
-                            totalCorrection);
-                }
-
-
-                int64_t GetAppliedCorrectionNanoseconds() const {
-                    return _appliedCorrectionNanoseconds;
-                }
-
-
-                int64_t GetPendingPhaseCorrectionNanoseconds() const {
-                    return _pendingPhaseCorrectionNanoseconds;
-                }
-
-
-                double GetEstimatedDriftPpm() const {
-                    return _estimatedDriftPpm;
-                }
-
-
-                ClockSynchronizationStatus<TTick> GetStatus(
-                    TTick currentLocalTime
-                ) const {
-                    ClockSynchronizationStatus<TTick> status;
-
-                    status.LastMeasuredOffsetNanoseconds = _lastMeasuredOffsetNanoseconds;
-                    status.FilteredOffsetNanoseconds = _filteredOffsetNanoseconds;
-                    status.PendingPhaseCorrectionNanoseconds = _pendingPhaseCorrectionNanoseconds;
-                    status.AppliedCorrectionNanoseconds = _appliedCorrectionNanoseconds;
-                    status.LastRoundTripDelayNanoseconds = _lastRoundTripDelayNanoseconds;
-                    status.EstimatedDriftPpm = _estimatedDriftPpm;
-                    status.AcceptedSampleCount = _acceptedSampleCount;
-                    status.RejectedSampleCount = _rejectedSampleCount;
-                    status.LastAcceptedSampleLocalTime = _lastAcceptedSampleLocalTime;
-                    status.HasAcceptedSample = _hasAcceptedSample;
-
-                    if (!_hasAcceptedSample) {
-                        status.State = ClockSynchronizationState::Unsynchronized;
-                        return status;
-                    }
-
-                    const bool stale =
-                        _config.MaximumSampleAgeNanoseconds > 0 &&
-                        currentLocalTime > _lastAcceptedSampleLocalTime &&
-                        static_cast<uint64_t>(currentLocalTime - _lastAcceptedSampleLocalTime) >
-                            _config.MaximumSampleAgeNanoseconds;
-
-                    if (stale) {
-                        status.State = ClockSynchronizationState::Unsynchronized;
-                        return status;
-                    }
-
-                    const bool enoughSamples =
-                        _synchronizationEvidenceSampleCount >=
-                        _config.MinimumSamplesForSynchronizedState;
-
-                    const bool phaseSettled =
-                        Internal::AbsoluteSignedValue(_pendingPhaseCorrectionNanoseconds) <=
-                        _config.SynchronizationToleranceNanoseconds;
-
-                    // The minimum-delay filter protects the servo against asymmetric queue excursions, but readiness
-                    // is a stronger claim than servo stability: the newest accepted exchange is the freshest direct
-                    // evidence of current phase. Do not report Synchronized when that residual itself lies outside the
-                    // configured tolerance even if an older lower-delay observation keeps filtered/pending phase small.
-                    const bool latestResidualWithinTolerance =
-                        Internal::AbsoluteSignedValue(_lastMeasuredOffsetNanoseconds) <=
-                        _config.SynchronizationToleranceNanoseconds;
-
-                    status.State = enoughSamples && phaseSettled && latestResidualWithinTolerance
-                        ? ClockSynchronizationState::Synchronized
-                        : ClockSynchronizationState::Acquiring;
-
-                    return status;
-                }
-        };
-
+#include "ESPressio_ClockRegression.hpp"
+#include "ESPressio_ClockModelSnapshot.hpp"
+namespace ESPressio::Timing {
+/// <summary>Owner-serialized K1/K2 discipline over a fixed window; transport, scheduling and callbacks remain outside it.</summary>
+/// <remarks>Only accepted evidence replaces the uncertainty anchor. Pure model/status reads never mutate state.
+/// The safety bound is physical: it is not divided by sample count or reduced by statistical confidence.</remarks>
+template<std::size_t N=8> class ClockDiscipline final {
+    static_assert(N>=4,"Clock discipline requires at least four fixed observations");
+    ClockSynchronizationProfile _profile{};
+    ClockRegression<N> _window;
+    ClockModelSnapshot _model{};
+    ClockSynchronizationStatus _diagnostics{};
+    bool _sealed=false,_active=false,_referenceAvailable=false,_qualified=false,_mature=false,_latestQualified=false;
+    std::uint64_t _reference=0,_lastObservation=0;
+    bool _hasObservation=false;
+    void ClearEvidence(std::uint64_t now) noexcept {
+        const auto time=_model.Evaluate(now);
+        const auto frequency=_model.FrequencyPartsPerBillion;
+        _window.Clear(); _model={}; _model.AnchorMonotonic=now; _model.AnchorTime=time;
+        _model.FrequencyPartsPerBillion=frequency;
+        _hasObservation=false; _lastObservation=0; _qualified=false; _mature=false; _latestQualified=false;
+        _diagnostics.RetainedSamples=0; _diagnostics.InlierSamples=0; _diagnostics.ObservationSpanNanoseconds=0;
+        _diagnostics.HasSynchronizationDeadline=_active;
+        _diagnostics.NextRequiredSynchronizationMonotonic=ClockMath::Add(now,_profile.AcquisitionIntervalNanoseconds);
     }
-
+    void UpdateDeadline(std::uint64_t now) noexcept {
+        _diagnostics.HasSynchronizationDeadline=_active;
+        if (!_active) return;
+        std::uint64_t interval=_profile.AcquisitionIntervalNanoseconds;
+        const auto uncertainty=_model.UncertaintyAt(now);
+        if (_qualified && uncertainty.IsKnown && uncertainty.Nanoseconds<ClockSynchronizationProfile::QualifiedCeilingNanoseconds) {
+            const auto room=ClockSynchronizationProfile::QualifiedCeilingNanoseconds-uncertainty.Nanoseconds;
+            if (room<=_profile.OperationalGuardNanoseconds) interval=0;
+            else if (!_model.ResidualErrorPartsPerBillion) interval=_profile.MaximumExchangeIntervalNanoseconds;
+            else {
+                const std::uint64_t safe=(room-_profile.OperationalGuardNanoseconds)*1000000000ull/_model.ResidualErrorPartsPerBillion;
+                // The minimum interval is a preferred cadence, never permission to schedule beyond safe headroom.
+                interval=std::min(safe,_profile.MaximumExchangeIntervalNanoseconds);
+                if (safe>=_profile.MinimumExchangeIntervalNanoseconds)
+                    interval=std::max(interval,_profile.MinimumExchangeIntervalNanoseconds);
+            }
+            interval=std::min(interval,_profile.MaximumFreshSampleAgeNanoseconds);
+        }
+        _diagnostics.NextRequiredSynchronizationMonotonic=ClockMath::Add(now,interval);
+    }
+    ClockSynchronizationResult Reject(ClockObservationRejection reason) noexcept {
+        ++_diagnostics.RejectedSamples; ++_diagnostics.RejectedByReason[static_cast<std::size_t>(reason)];
+        ClockSynchronizationResult result; result.Rejection=reason; return result;
+    }
+public:
+    ClockDiscipline() noexcept = default;
+    /// <summary>Validates tuning transactionally, preserves current clock value and invalidates old qualification evidence.</summary>
+    ClockConfigurationStatus Configure(const ClockSynchronizationProfile& profile,std::uint64_t now) noexcept {
+        if (!profile.IsValid(N)) return ClockConfigurationStatus::InvalidProfile;
+        _profile=profile; ClearEvidence(now); UpdateDeadline(now); return ClockConfigurationStatus::Success;
+    }
+    const ClockSynchronizationProfile& GetProfile() const noexcept { return _profile; }
+    /// <summary>Establishes the one active trusted reference identity; a change clears samples without stepping the timeline.</summary>
+    ClockConfigurationStatus SelectReference(std::uint64_t reference,std::uint64_t now) noexcept {
+        if (!reference) return ClockConfigurationStatus::InvalidReference;
+        if (reference==_reference) return ClockConfigurationStatus::Success;
+        _reference=reference; _active=true; _referenceAvailable=true; ClearEvidence(now); UpdateDeadline(now);
+        return ClockConfigurationStatus::Success;
+    }
+    /// <summary>Reports orchestration activity/availability without fabricating new timing evidence or reducing uncertainty.</summary>
+    void SetActivity(bool acquiring,bool referenceAvailable,std::uint64_t now) noexcept {
+        const bool newlyActive=acquiring && !_active;
+        _active=acquiring; _referenceAvailable=referenceAvailable;
+        if (newlyActive) UpdateDeadline(now);
+        if (!_active) _diagnostics.HasSynchronizationDeadline=false;
+    }
+    /// <summary>Clears synchronization history while preserving the current continuous public coordinate and seal.</summary>
+    void Reset(std::uint64_t now) noexcept { ClearEvidence(now); UpdateDeadline(now); }
+    /// <summary>Explicit bootstrap-only rebase; a sealed runtime rejects it without changing any state.</summary>
+    ClockConfigurationStatus TryRebase(std::uint64_t time,std::uint64_t now) noexcept {
+        if (_sealed) return ClockConfigurationStatus::ContinuitySealed;
+        ClearEvidence(now); _model={}; _model.AnchorMonotonic=now; _model.AnchorTime=time;
+        UpdateDeadline(now); return ClockConfigurationStatus::Success;
+    }
+    void SealContinuity() noexcept { _sealed=true; }
+    bool IsContinuitySealed() const noexcept { return _sealed; }
+    const ClockModelSnapshot& Model() const noexcept { return _model; }
+    void RecordSchedulerDeadlineMiss() noexcept { ++_diagnostics.SchedulerDeadlineMisses; }
+    /// <summary>Validates a complete observation, stages a fixed candidate window and atomically commits accepted evidence.</summary>
+    ClockSynchronizationResult Submit(const ClockSynchronizationObservation<>& observation,std::uint64_t now,
+                                      std::uint64_t sourceQuantizationGuard=1) noexcept {
+        if (!_profile.IsValid(N)) return Reject(ClockObservationRejection::InvalidProfile);
+        const auto validated=ValidateClockSynchronizationObservation(observation,_profile);
+        for (const auto* capture:std::array<const ClockTimestampCapture<>*,4>{&observation.T1,&observation.T2,&observation.T3,&observation.T4}) {
+            const auto quality=static_cast<std::size_t>(capture->Quality);
+            if (quality<_diagnostics.CaptureQualityCounts.size()) ++_diagnostics.CaptureQualityCounts[quality];
+        }
+        if (!validated.Accepted()) return Reject(validated.Rejection);
+        if (!_reference || observation.ReferenceIdentity!=_reference) return Reject(ClockObservationRejection::ReferenceMismatch);
+        if (observation.T4.MonotonicTimeNanoseconds>now || now<_model.AnchorMonotonic)
+            return Reject(ClockObservationRejection::InvalidTimestampOrder);
+        if (_hasObservation && validated.ObservationMonotonicNanoseconds<=_lastObservation)
+            return Reject(ClockObservationRejection::NonIncreasingObservation);
+        auto candidate=_window; // Fixed N-record staging, not a second live window or capacity fallback.
+        const auto inserted=candidate.NextIndex();
+        candidate.Add({validated.ObservationMonotonicNanoseconds,validated.MeasuredOffsetNanoseconds,
+            validated.ReferenceMinusMonotonicNanoseconds,validated.Uncertainty,validated.ReferenceQualified});
+        const auto fit=candidate.Calculate(_profile);
+        if (!fit.Valid || !fit.Included[inserted]) return Reject(ClockObservationRejection::Outlier);
+        const auto oldTime=_model.Evaluate(now);
+        std::int64_t currentMinusMonotonic=0;
+        if (!ClockMath::Difference(oldTime,now,currentMinusMonotonic)) return Reject(ClockObservationRejection::NumericOverflow);
+        const auto targetOffset=fit.Predict(now);
+        const auto phase=targetOffset-static_cast<long double>(currentMinusMonotonic);
+        if (!std::isfinite(phase) || phase>static_cast<long double>(INT64_MAX) || phase<static_cast<long double>(INT64_MIN))
+            return Reject(ClockObservationRejection::NumericOverflow);
+        const auto desiredPpm=fit.Slope*1000000.0L;
+        const auto frequencyPpm=std::clamp(desiredPpm,-static_cast<long double>(_profile.MaximumFrequencyCorrectionPpm),
+                                        static_cast<long double>(_profile.MaximumFrequencyCorrectionPpm));
+        ClockModelSnapshot model;
+        model.AnchorMonotonic=now; model.AnchorTime=oldTime;
+        model.FrequencyPartsPerBillion=static_cast<std::int32_t>(std::llround(frequencyPpm*1000));
+        model.SlewPartsPerBillion=_profile.MaximumSlewRatePpm*1000;
+        model.PendingPhaseNanoseconds=ClockMath::Signed(phase);
+        const auto residualPpb=ClockMath::Ceiling(static_cast<long double>(_profile.ResidualFrequencyErrorBoundPpm)*1000+
+            std::fabs(desiredPpm*1000-model.FrequencyPartsPerBillion)+1); // Include quantized/clipped-rate error; never reduce physical bound.
+        if (residualPpb<=1000000000u) model.ResidualErrorPartsPerBillion=static_cast<std::uint32_t>(residualPpb);
+        if (fit.AllEvidenceQualified && residualPpb<=1000000000u) {
+            // Conservative floating arithmetic guard includes integer-to-floating conversion and cancellation
+            // near large epochs, including targets where long double has only binary64 precision.
+            const auto numericGuard=ClockMath::Ceiling(8*std::numeric_limits<long double>::epsilon()*
+                (std::fabs(targetOffset)+std::fabs(static_cast<long double>(currentMinusMonotonic))+1));
+            auto uncertainty=ClockMath::Add(fit.MaximumObservationUncertainty,fit.ResidualEnvelope);
+            uncertainty=ClockMath::Add(uncertainty,ClockMath::Abs(model.PendingPhaseNanoseconds));
+            uncertainty=ClockMath::Add(uncertainty,ClockMath::Add(_profile.QuantizationGuardNanoseconds,sourceQuantizationGuard));
+            uncertainty=ClockMath::Add(uncertainty,numericGuard);
+            uncertainty=ClockMath::Add(uncertainty,ClockMath::ScalePartsPerBillion(now-validated.ObservationMonotonicNanoseconds,
+                                                                                              model.ResidualErrorPartsPerBillion,true));
+            model.AnchorUncertainty=ClockUncertainty::Known(uncertainty);
+        }
+        const bool previouslyQualified=IsQualifiedTimeReliability(GetStatus(now).Reliability);
+        _window=candidate; _model=model; _hasObservation=true; _lastObservation=validated.ObservationMonotonicNanoseconds;
+        _latestQualified=validated.ReferenceQualified && validated.Uncertainty.IsKnown;
+        _mature=fit.Inliers>=_profile.MinimumAcceptedSamples && fit.ObservationSpan>=_profile.MinimumRegressionObservationSpanNanoseconds;
+        _qualified=_mature && _latestQualified && model.AnchorUncertainty.IsKnown &&
+            (previouslyQualified ? model.AnchorUncertainty.Nanoseconds<ClockSynchronizationProfile::QualifiedCeilingNanoseconds :
+                                   model.AnchorUncertainty.Nanoseconds<=ClockSynchronizationProfile::EntryUncertaintyNanoseconds);
+        ++_diagnostics.AcceptedSamples;
+        _diagnostics.LastMeasuredOffsetNanoseconds=validated.MeasuredOffsetNanoseconds;
+        _diagnostics.ModelPhaseResidualNanoseconds=model.PendingPhaseNanoseconds;
+        _diagnostics.LastRoundTripDelayNanoseconds=validated.RoundTripDelayNanoseconds;
+        _diagnostics.ModelResidualEnvelopeNanoseconds=fit.ResidualEnvelope;
+        _diagnostics.RetainedSamples=candidate.Size(); _diagnostics.InlierSamples=fit.Inliers;
+        _diagnostics.ObservationSpanNanoseconds=fit.ObservationSpan;
+        UpdateDeadline(now);
+        return {true,ClockObservationRejection::None,validated.MeasuredOffsetNanoseconds,model.PendingPhaseNanoseconds,
+                validated.RoundTripDelayNanoseconds,static_cast<double>(model.FrequencyPartsPerBillion)/1000};
+    }
+    /// <summary>Derives current qualification/holdover expiry without changing the window, model, counters or observers.</summary>
+    ClockSynchronizationStatus GetStatus(std::uint64_t now) const noexcept {
+        auto status=_diagnostics;
+        status.ReferenceIdentity=_reference;
+        status.LastAcceptedSampleMonotonic=_lastObservation;
+        status.SampleAgeNanoseconds=_hasObservation && now>=_lastObservation ? now-_lastObservation : 0;
+        status.CurrentUncertainty=_model.UncertaintyAt(now);
+        status.PendingPhaseSlewNanoseconds=_model.PendingPhase(now);
+        status.EstimatedFrequencyCorrectionPpm=static_cast<double>(_model.FrequencyPartsPerBillion)/1000;
+        status.ResidualFrequencyErrorBoundPpm=_profile.ResidualFrequencyErrorBoundPpm;
+        if (_qualified && status.CurrentUncertainty.IsKnown && status.CurrentUncertainty.Nanoseconds<ClockSynchronizationProfile::QualifiedCeilingNanoseconds) {
+            const bool fresh=_referenceAvailable && _latestQualified && status.SampleAgeNanoseconds<=_profile.MaximumFreshSampleAgeNanoseconds &&
+                (!_diagnostics.HasSynchronizationDeadline || now<=_diagnostics.NextRequiredSynchronizationMonotonic);
+            status.Reliability=fresh ? TimeReliability::Synchronized : TimeReliability::Holdover;
+        } else status.Reliability=_active ? TimeReliability::Acquiring : TimeReliability::Unqualified;
+        return status;
+    }
+};
 }

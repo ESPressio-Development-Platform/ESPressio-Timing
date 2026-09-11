@@ -40,8 +40,8 @@ public:
         TTick clockBeforeNanoseconds,
         TTick clockAfterNanoseconds,
         int64_t immediateDifferenceNanoseconds,
-        const ClockSynchronizationResult<TTick>& result,
-        const ClockSynchronizationStatus<TTick>& status
+        const ClockSynchronizationResult& result,
+        const ClockSynchronizationStatus& status
     ) {
         (void)clockBeforeNanoseconds;
         (void)clockAfterNanoseconds;
@@ -55,8 +55,8 @@ public:
         TTick clockBeforeNanoseconds,
         TTick clockAfterNanoseconds,
         int64_t immediateDifferenceNanoseconds,
-        const ClockSynchronizationResult<TTick>& result,
-        const ClockSynchronizationStatus<TTick>& status
+        const ClockSynchronizationResult& result,
+        const ClockSynchronizationStatus& status
     ) {
         (void)clockBeforeNanoseconds;
         (void)clockAfterNanoseconds;
@@ -67,18 +67,18 @@ public:
 
     /// <summary>Called when a submitted synchronization sample is rejected.</summary>
     virtual void OnSystemClockSynchronizationSampleRejected(
-        const ClockSynchronizationResult<TTick>& result,
-        const ClockSynchronizationStatus<TTick>& status
+        const ClockSynchronizationResult& result,
+        const ClockSynchronizationStatus& status
     ) {
         (void)result;
         (void)status;
     }
 
-    /// <summary>Called whenever the synchronization acquisition state changes.</summary>
+    /// <summary>Called by an explicit operation/service when reliability changes; never called by an ordinary clock read.</summary>
     virtual void OnSystemClockSynchronizationStateChanged(
-        ClockSynchronizationState previousState,
-        ClockSynchronizationState newState,
-        const ClockSynchronizationStatus<TTick>& status
+        TimeReliability previousState,
+        TimeReliability newState,
+        const ClockSynchronizationStatus& status
     ) {
         (void)previousState;
         (void)newState;
@@ -87,8 +87,8 @@ public:
 
     /// <summary>Called after synchronization history and discipline state are reset.</summary>
     virtual void OnSystemClockSynchronizationReset(
-        const ClockSynchronizationStatus<TTick>& previousStatus,
-        const ClockSynchronizationStatus<TTick>& newStatus
+        const ClockSynchronizationStatus& previousStatus,
+        const ClockSynchronizationStatus& newStatus
     ) {
         (void)previousStatus;
         (void)newStatus;
@@ -96,8 +96,8 @@ public:
 
     /// <summary>Called after synchronization configuration is replaced.</summary>
     virtual void OnSystemClockSynchronizationConfigurationChanged(
-        const ClockSynchronizationConfig& previousConfig,
-        const ClockSynchronizationConfig& newConfig
+        const ClockSynchronizationProfile& previousConfig,
+        const ClockSynchronizationProfile& newConfig
     ) {
         (void)previousConfig;
         (void)newConfig;

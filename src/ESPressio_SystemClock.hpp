@@ -1,13 +1,11 @@
 #pragma once
-
-#include <cstddef>
+#include <array>
 #include <exception>
 #include <functional>
-#include <limits>
 #include <memory>
+#include <type_traits>
 #include <utility>
-
-#include "ESPressio_ClockTypes.hpp"
+#include <ESPressio_SystemPlatformClock.hpp>
 #include "ESPressio_ClockDiscipline.hpp"
 #include "ESPressio_ISystemClock.hpp"
 #include "ESPressio_IClockSynchronizationTarget.hpp"
@@ -18,1193 +16,218 @@
 #include "ESPressio_TimeTraits.hpp"
 #include "ESPressio_LockPolicy.hpp"
 #include "ESPressio_ThreadSafeLockPolicy.hpp"
-
 #ifndef ESPRESSIO_TIMING_MAX_CALLBACKS
-    #define ESPRESSIO_TIMING_MAX_CALLBACKS 8
+#define ESPRESSIO_TIMING_MAX_CALLBACKS 8
 #endif
-
-namespace ESPressio {
-
-    namespace Timing {
-
-        /*
-         * Non-templated singleton state for the system clock.
-         *
-         * There is exactly one system timeline, regardless of how many typed
-         * SystemClock<TTime> facades are instantiated.
-         *
-         * Public Unit/Serializable representations never live here; the core
-         * stores only raw nanosecond ticks and the global callback scheduler.
-         */
-
-template<
-            typename TLockPolicy = ThreadSafeLockPolicy,
-            typename TTick = ClockTick
-        >
-        class SystemClockCore {
-            private:
-                using ClockCallback =
-                    std::function<void()>;
-
-
-struct ScheduledCallback {
-                    TTick Time = 0;
-                    ClockCallback Callback = nullptr;
-                };
-
-                ITimeSource* _timeSource;
-
-                mutable
-                    typename TLockPolicy::Mutex
-                        _clockMutex;
-
-                mutable
-                    typename TLockPolicy::Mutex
-                        _callbacksMutex;
-
-                TTick _baseTime = 0;
-                TTick _baseSourceTime = 0;
-
-                mutable ClockDiscipline<TTick>
-                    _discipline;
-
-                std::shared_ptr<TimingObservable>
-                    _observable =
-                        CreateTimingObservable();
-
-                mutable ClockSynchronizationState
-                    _lastNotifiedSynchronizationState =
-                        ClockSynchronizationState::Unsynchronized;
-
-                ScheduledCallback
-                    _callbacks[
-                        ESPRESSIO_TIMING_MAX_CALLBACKS
-                    ];
-
-
-                explicit SystemClockCore(
-                    ITimeSource* timeSource =
-                        HighResolutionTimeSourceT<
-                            TLockPolicy
-                        >::GetInstance()
-                )
-                    : _timeSource(
-                        timeSource == nullptr
-                            ? HighResolutionTimeSourceT<
-                                TLockPolicy
-                              >::GetInstance()
-                            : timeSource
-                    ),
-                      _baseSourceTime(
-                          GetSourceTime()
-                      ) {
-                }
-
-
-                TTick GetSourceTime() const {
-                    return static_cast<TTick>(
-                        Internal::TicksToNanoseconds(
-                            _timeSource->GetTicks(),
-                            _timeSource->
-                                GetTicksPerSecond()
-                        )
-                    );
-                }
-
-
-                static TTick AddSaturated(
-                    TTick left,
-                    TTick right
-                ) {
-                    const TTick maximum =
-                        std::numeric_limits<
-                            TTick
-                        >::max();
-
-                    return
-                        right >
-                            maximum -
-                            left
-                            ? maximum
-                            : left +
-                                right;
-                }
-
-
-                static TTick ApplySignedCorrection(
-                    TTick value,
-                    int64_t correction
-                ) {
-                    if (correction >= 0) {
-                        const uint64_t positive =
-                            static_cast<uint64_t>(
-                                correction
-                            );
-
-                        return
-                            positive >
-                                static_cast<uint64_t>(
-                                    std::numeric_limits<
-                                        TTick
-                                    >::max() -
-                                    value
-                                )
-                                ? std::numeric_limits<
-                                    TTick
-                                  >::max()
-                                : static_cast<TTick>(
-                                    value +
-                                    static_cast<TTick>(
-                                        positive
-                                    )
-                                  );
-                    }
-
-                    const uint64_t magnitude =
-                        correction ==
-                            std::numeric_limits<
-                                int64_t
-                            >::min()
-                            ? static_cast<uint64_t>(
-                                std::numeric_limits<
-                                    int64_t
-                                >::max()
-                              ) +
-                              1ULL
-                            : static_cast<uint64_t>(
-                                -correction
-                              );
-
-                    return
-                        magnitude >
-                            static_cast<uint64_t>(
-                                value
-                            )
-                            ? 0
-                            : static_cast<TTick>(
-                                value -
-                                static_cast<TTick>(
-                                    magnitude
-                                )
-                              );
-                }
-
-
-                TTick GetRawTimeNanosecondsLocked(
-                    TTick sourceTime
-                ) const {
-                    const TTick elapsed =
-                        sourceTime >=
-                            _baseSourceTime
-                            ? sourceTime -
-                                _baseSourceTime
-                            : 0;
-
-                    return
-                        AddSaturated(
-                            _baseTime,
-                            elapsed
-                        );
-                }
-
-
-            public:
-                using TickType = TTick;
-
-
-                SystemClockCore(
-                    const SystemClockCore&
-                ) = delete;
-
-                SystemClockCore& operator=(
-                    const SystemClockCore&
-                ) = delete;
-
-                SystemClockCore(
-                    SystemClockCore&&
-                ) = delete;
-
-                SystemClockCore& operator=(
-                    SystemClockCore&&
-                ) = delete;
-
-
-                static SystemClockCore&
-                GetInstance(
-                    ITimeSource* timeSource =
-                        HighResolutionTimeSourceT<
-                            TLockPolicy
-                        >::GetInstance()
-                ) {
-                    static SystemClockCore
-                        instance(
-                            timeSource
-                        );
-
-                    return instance;
-                }
-
-
-                TTick GetTimeNanoseconds() const {
-                    const TTick sourceTime =
-                        GetSourceTime();
-
-                    TTick correctedTime = 0;
-                    ClockSynchronizationStatus<TTick> status;
-                    ClockSynchronizationState previousNotifiedState =
-                        ClockSynchronizationState::Unsynchronized;
-                    bool stateChanged = false;
-
-                    {
-                        typename TLockPolicy::Guard
-                            lock(_clockMutex);
-
-                        const TTick rawTime =
-                            GetRawTimeNanosecondsLocked(
-                                sourceTime
-                            );
-
-                        _discipline.Advance(
-                            rawTime
-                        );
-
-                        correctedTime =
-                            ApplySignedCorrection(
-                                rawTime,
-                                _discipline.
-                                    GetAppliedCorrectionNanoseconds()
-                            );
-
-                        status =
-                            _discipline.GetStatus(
-                                correctedTime
-                            );
-
-                        previousNotifiedState =
-                            _lastNotifiedSynchronizationState;
-
-                        if (
-                            status.State !=
-                            _lastNotifiedSynchronizationState
-                        ) {
-                            _lastNotifiedSynchronizationState =
-                                status.State;
-                            stateChanged = true;
-                        }
-                    }
-
-                    /*
-                     * A getter remains silent unless advancing the discipline
-                     * causes a genuine synchronization-state transition. That
-                     * transition is itself a meaningful clock event.
-                     */
-                    if (stateChanged) {
-                        _observable->Notify<
-                            ISystemClockObserver<TTick>
-                        >(
-                            [&](ISystemClockObserver<TTick>* observer) {
-                                observer->OnSystemClockSynchronizationStateChanged(
-                                    previousNotifiedState,
-                                    status.State,
-                                    status
-                                );
-                            }
-                        );
-                    }
-
-                    return correctedTime;
-                }
-
-
-                TTick GetResolutionNanoseconds() const {
-                    return static_cast<TTick>(
-                        Internal::
-                            GetSourceResolution(
-                                _timeSource->
-                                    GetTicksPerSecond()
-                            )
-                    );
-                }
-
-
-                void SetTimeNanoseconds(
-                    TTick time
-                ) {
-                    const TTick sourceTime =
-                        GetSourceTime();
-
-                    TTick previousTime = 0;
-                    ClockSynchronizationStatus<TTick>
-                        previousStatus;
-                    ClockSynchronizationStatus<TTick>
-                        newStatus;
-
-                    {
-                        typename TLockPolicy::Guard
-                            lock(_clockMutex);
-
-                        const TTick rawTime =
-                            GetRawTimeNanosecondsLocked(
-                                sourceTime
-                            );
-
-                        _discipline.Advance(
-                            rawTime
-                        );
-
-                        previousTime =
-                            ApplySignedCorrection(
-                                rawTime,
-                                _discipline.
-                                    GetAppliedCorrectionNanoseconds()
-                            );
-
-                        previousStatus =
-                            _discipline.GetStatus(
-                                previousTime
-                            );
-
-                        _baseTime = time;
-                        _baseSourceTime = sourceTime;
-
-                        /*
-                         * Explicit SetTime is a hard rebase. The previous
-                         * synchronization relationship is invalid afterwards.
-                         */
-                        _discipline.Reset();
-
-                        newStatus =
-                            _discipline.GetStatus(
-                                time
-                            );
-
-                        _lastNotifiedSynchronizationState =
-                            newStatus.State;
-                    }
-
-                    const int64_t difference =
-                        Internal::SignedDifference(
-                            time,
-                            previousTime
-                        );
-
-                    _observable->Notify<
-                        ISystemClockObserver<TTick>
-                    >(
-                        [&](ISystemClockObserver<TTick>* observer) {
-                            observer->OnSystemClockTimeSet(
-                                previousTime,
-                                time,
-                                difference
-                            );
-
-                            if (
-                                previousStatus.HasAcceptedSample ||
-                                previousStatus.State !=
-                                    ClockSynchronizationState::Unsynchronized
-                            ) {
-                                observer->OnSystemClockSynchronizationReset(
-                                    previousStatus,
-                                    newStatus
-                                );
-
-                                if (
-                                    previousStatus.State !=
-                                    newStatus.State
-                                ) {
-                                    observer->OnSystemClockSynchronizationStateChanged(
-                                        previousStatus.State,
-                                        newStatus.State,
-                                        newStatus
-                                    );
-                                }
-                            }
-                        }
-                    );
-                }
-
-
-                TTick
-                GetSynchronizationTimestampNanoseconds()
-                    const {
-                    return
-                        GetTimeNanoseconds();
-                }
-
-
-                ClockSynchronizationResult<TTick>
-                SubmitSynchronizationSample(
-                    const ClockSynchronizationSample<TTick>& sample,
-                    ClockSynchronizationAdjustmentMode adjustmentMode =
-                        ClockSynchronizationAdjustmentMode::SlewOnly
-                ) {
-                    ClockSynchronizationResult<TTick> result;
-                    ClockSynchronizationStatus<TTick> previousStatus;
-                    ClockSynchronizationStatus<TTick> status;
-                    TTick clockBefore = 0;
-                    TTick clockAfter = 0;
-                    ClockSynchronizationState previousNotifiedState =
-                        ClockSynchronizationState::Unsynchronized;
-
-                    {
-                        const TTick sourceTime =
-                            GetSourceTime();
-
-                        typename TLockPolicy::Guard
-                            lock(_clockMutex);
-
-                        const TTick rawTime =
-                            GetRawTimeNanosecondsLocked(
-                                sourceTime
-                            );
-
-                        _discipline.Advance(rawTime);
-
-                        clockBefore =
-                            ApplySignedCorrection(
-                                rawTime,
-                                _discipline.
-                                    GetAppliedCorrectionNanoseconds()
-                            );
-
-                        previousStatus =
-                            _discipline.GetStatus(
-                                clockBefore
-                            );
-
-                        const bool hadAcceptedSample =
-                            previousStatus.HasAcceptedSample;
-
-                        result =
-                            _discipline.SubmitSample(
-                                sample
-                            );
-
-                        if (result.Accepted) {
-                            const bool applyStep =
-                                adjustmentMode ==
-                                    ClockSynchronizationAdjustmentMode::StepAlways ||
-                                (
-                                    adjustmentMode ==
-                                        ClockSynchronizationAdjustmentMode::StepIfUnsynchronized &&
-                                    !hadAcceptedSample
-                                );
-
-                            if (applyStep) {
-                                _discipline.ApplyStep(
-                                    result.FilteredOffsetNanoseconds
-                                );
-                            }
-                        }
-
-                        clockAfter =
-                            ApplySignedCorrection(
-                                rawTime,
-                                _discipline.
-                                    GetAppliedCorrectionNanoseconds()
-                            );
-
-                        status =
-                            _discipline.GetStatus(
-                                clockAfter
-                            );
-
-                        previousNotifiedState =
-                            _lastNotifiedSynchronizationState;
-
-                        _lastNotifiedSynchronizationState =
-                            status.State;
-                    }
-
-                    if (!result.Accepted) {
-                        _observable->Notify<
-                            ISystemClockObserver<TTick>
-                        >(
-                            [&](ISystemClockObserver<TTick>* observer) {
-                                observer->OnSystemClockSynchronizationSampleRejected(
-                                    result,
-                                    status
-                                );
-                            }
-                        );
-
-                        return result;
-                    }
-
-                    const int64_t immediateDifference =
-                        Internal::SignedDifference(
-                            clockAfter,
-                            clockBefore
-                        );
-
-                    _observable->Notify<
-                        ISystemClockObserver<TTick>
-                    >(
-                        [&](ISystemClockObserver<TTick>* observer) {
-                            observer->OnSystemClockSynchronizationSampleAccepted(
-                                clockBefore,
-                                clockAfter,
-                                immediateDifference,
-                                result,
-                                status
-                            );
-
-                            observer->OnSystemClockSynchronized(
-                                clockBefore,
-                                clockAfter,
-                                immediateDifference,
-                                result,
-                                status
-                            );
-
-                            if (
-                                previousNotifiedState !=
-                                status.State
-                            ) {
-                                observer->OnSystemClockSynchronizationStateChanged(
-                                    previousNotifiedState,
-                                    status.State,
-                                    status
-                                );
-                            }
-                        }
-                    );
-
-                    return result;
-                }
-
-
-                ClockSynchronizationStatus<TTick>
-                GetSynchronizationStatus() const {
-                    const TTick sourceTime =
-                        GetSourceTime();
-
-                    typename TLockPolicy::Guard
-                        lock(_clockMutex);
-
-                    const TTick rawTime =
-                        GetRawTimeNanosecondsLocked(
-                            sourceTime
-                        );
-
-                    _discipline.Advance(
-                        rawTime
-                    );
-
-                    const TTick correctedTime =
-                        ApplySignedCorrection(
-                            rawTime,
-                            _discipline.
-                                GetAppliedCorrectionNanoseconds()
-                        );
-
-                    return
-                        _discipline.
-                            GetStatus(
-                                correctedTime
-                            );
-                }
-
-
-                void ConfigureSynchronization(
-                    const ClockSynchronizationConfig& config
-                ) {
-                    ClockSynchronizationConfig previousConfig;
-
-                    {
-                        typename TLockPolicy::Guard
-                            lock(_clockMutex);
-
-                        previousConfig =
-                            _discipline.GetConfig();
-
-                        _discipline.Configure(
-                            config
-                        );
-                    }
-
-                    _observable->Notify<
-                        ISystemClockObserver<TTick>
-                    >(
-                        [&](ISystemClockObserver<TTick>* observer) {
-                            observer->OnSystemClockSynchronizationConfigurationChanged(
-                                previousConfig,
-                                config
-                            );
-                        }
-                    );
-                }
-
-
-                ClockSynchronizationConfig
-                GetSynchronizationConfig() const {
-                    typename TLockPolicy::Guard
-                        lock(_clockMutex);
-
-                    return
-                        _discipline.
-                            GetConfig();
-                }
-
-
-                void ResetSynchronization() {
-                    ClockSynchronizationStatus<TTick>
-                        previousStatus;
-                    ClockSynchronizationStatus<TTick>
-                        newStatus;
-
-                    {
-                        const TTick sourceTime =
-                            GetSourceTime();
-
-                        typename TLockPolicy::Guard
-                            lock(_clockMutex);
-
-                        const TTick rawTime =
-                            GetRawTimeNanosecondsLocked(
-                                sourceTime
-                            );
-
-                        _discipline.Advance(rawTime);
-
-                        const TTick correctedTime =
-                            ApplySignedCorrection(
-                                rawTime,
-                                _discipline.
-                                    GetAppliedCorrectionNanoseconds()
-                            );
-
-                        previousStatus =
-                            _discipline.GetStatus(
-                                correctedTime
-                            );
-
-                        _discipline.Reset();
-
-                        newStatus =
-                            _discipline.GetStatus(
-                                correctedTime
-                            );
-
-                        _lastNotifiedSynchronizationState =
-                            newStatus.State;
-                    }
-
-                    _observable->Notify<
-                        ISystemClockObserver<TTick>
-                    >(
-                        [&](ISystemClockObserver<TTick>* observer) {
-                            observer->OnSystemClockSynchronizationReset(
-                                previousStatus,
-                                newStatus
-                            );
-
-                            if (
-                                previousStatus.State !=
-                                newStatus.State
-                            ) {
-                                observer->OnSystemClockSynchronizationStateChanged(
-                                    previousStatus.State,
-                                    newStatus.State,
-                                    newStatus
-                                );
-                            }
-                        }
-                    );
-                }
-
-
-                bool TrySetCallbackNanoseconds(
-                    TTick time,
-                    ClockCallback callback
-                ) {
-                    if (!callback) {
-                        _observable->Notify<
-                            ISystemClockObserver<TTick>
-                        >(
-                            [&](ISystemClockObserver<TTick>* observer) {
-                                observer->OnSystemClockCallbackScheduleFailed(
-                                    time
-                                );
-                            }
-                        );
-
-                        return false;
-                    }
-
-                    bool scheduled = false;
-
-                    {
-                        typename TLockPolicy::Guard
-                            lock(_callbacksMutex);
-
-                        for (
-                            std::size_t index = 0;
-                            index < ESPRESSIO_TIMING_MAX_CALLBACKS;
-                            ++index
-                        ) {
-                            if (!_callbacks[index].Callback) {
-                                _callbacks[index].Time = time;
-                                _callbacks[index].Callback =
-                                    std::move(callback);
-                                scheduled = true;
-                                break;
-                            }
-                        }
-                    }
-
-                    _observable->Notify<
-                        ISystemClockObserver<TTick>
-                    >(
-                        [&](ISystemClockObserver<TTick>* observer) {
-                            if (scheduled) {
-                                observer->OnSystemClockCallbackScheduled(time);
-                            } else {
-                                observer->OnSystemClockCallbackScheduleFailed(time);
-                            }
-                        }
-                    );
-
-                    return scheduled;
-                }
-
-
-                void Update() {
-                    const TTick currentTime =
-                        GetTimeNanoseconds();
-
-                    ClockCallback callbacks[
-                        ESPRESSIO_TIMING_MAX_CALLBACKS
-                    ];
-
-                    TTick scheduledTimes[
-                        ESPRESSIO_TIMING_MAX_CALLBACKS
-                    ] = {};
-
-                    {
-                        typename TLockPolicy::Guard
-                            lock(_callbacksMutex);
-
-                        for (
-                            std::size_t index = 0;
-                            index < ESPRESSIO_TIMING_MAX_CALLBACKS;
-                            ++index
-                        ) {
-                            if (
-                                _callbacks[index].Callback &&
-                                currentTime >= _callbacks[index].Time
-                            ) {
-                                scheduledTimes[index] =
-                                    _callbacks[index].Time;
-
-                                callbacks[index] =
-                                    std::move(
-                                        _callbacks[index].Callback
-                                    );
-
-                                _callbacks[index] =
-                                    ScheduledCallback();
-                            }
-                        }
-                    }
-
-                    for (
-                        std::size_t index = 0;
-                        index < ESPRESSIO_TIMING_MAX_CALLBACKS;
-                        ++index
-                    ) {
-                        if (callbacks[index]) {
-                            try {
-                                callbacks[index]();
-                            } catch (...) {
-                                const TTick actualTime =
-                                    GetTimeNanoseconds();
-
-                                const int64_t difference =
-                                    Internal::SignedDifference(
-                                        actualTime,
-                                        scheduledTimes[index]
-                                    );
-
-                                const std::exception_ptr cause =
-                                    std::current_exception();
-
-                                _observable->Notify<
-                                    ISystemClockObserver<TTick>
-                                >(
-                                    [&](ISystemClockObserver<TTick>* observer) {
-                                        observer->OnSystemClockCallbackExecutionFailed(
-                                            scheduledTimes[index],
-                                            actualTime,
-                                            difference,
-                                            cause
-                                        );
-                                    }
-                                );
-
-                                std::rethrow_exception(cause);
-                            }
-
-                            const TTick actualTime =
-                                GetTimeNanoseconds();
-
-                            const int64_t difference =
-                                Internal::SignedDifference(
-                                    actualTime,
-                                    scheduledTimes[index]
-                                );
-
-                            _observable->Notify<
-                                ISystemClockObserver<TTick>
-                            >(
-                                [&](ISystemClockObserver<TTick>* observer) {
-                                    observer->OnSystemClockCallbackExecuted(
-                                        scheduledTimes[index],
-                                        actualTime,
-                                        difference
-                                    );
-                                }
-                            );
-                        }
-                    }
-                }
-
-
-                void ClearCallbacks() {
-                    std::size_t clearedCount = 0;
-
-                    {
-                        typename TLockPolicy::Guard
-                            lock(_callbacksMutex);
-
-                        for (
-                            std::size_t index = 0;
-                            index < ESPRESSIO_TIMING_MAX_CALLBACKS;
-                            ++index
-                        ) {
-                            if (_callbacks[index].Callback) {
-                                ++clearedCount;
-                            }
-
-                            _callbacks[index] =
-                                ScheduledCallback();
-                        }
-                    }
-
-                    if (clearedCount > 0) {
-                        _observable->Notify<
-                            ISystemClockObserver<TTick>
-                        >(
-                            [&](ISystemClockObserver<TTick>* observer) {
-                                observer->OnSystemClockCallbacksCleared(
-                                    clearedCount
-                                );
-                            }
-                        );
-                    }
-                }
-
-
-                Observable::ObserverHandlePtr
-                RegisterObserver(
-                    ISystemClockObserver<TTick>* observer
-                ) {
-                    return _observable->RegisterObserver(observer);
-                }
-
-
-                void UnregisterObserver(
-                    ISystemClockObserver<TTick>* observer
-                ) {
-                    _observable->UnregisterObserver(observer);
-                }
-
-
-                ITimeSource*
-                GetTimeSource() const {
-                    return _timeSource;
-                }
-        };
-
-
-        /*
-         * Typed facade over the one global SystemClockCore.
-         *
-         * Different TTime specializations may coexist, but they all represent
-         * the same underlying system clock state and callback scheduler.
-         */
-
-template<
-            typename TTime = DefaultClockTime,
-            typename TLockPolicy =
-                ThreadSafeLockPolicy,
-            typename TTick = ClockTick
-        >
-        class SystemClock :
-            public ISystemClock<
-                TTime
-            >,
-            public IClockSynchronizationTarget<
-                TTick
-            > {
-
-            private:
-                using Core =
-                    SystemClockCore<
-                        TLockPolicy,
-                        TTick
-                    >;
-
-                Core& _core;
-
-
-                SystemClock(
-                    ITimeSource* timeSource =
-                        HighResolutionTimeSourceT<
-                            TLockPolicy
-                        >::GetInstance()
-                )
-                    : _core(
-                        Core::GetInstance(
-                            timeSource
-                        )
-                    ) {
-                }
-
-
-            public:
-                using TimeType = TTime;
-                using TickType = TTick;
-
-                using ClockCallback =
-                    typename ISystemClock<
-                        TTime
-                    >::ClockCallback;
-
-
-                SystemClock(
-                    const SystemClock&
-                ) = delete;
-
-                SystemClock& operator=(
-                    const SystemClock&
-                ) = delete;
-
-                SystemClock(
-                    SystemClock&&
-                ) = delete;
-
-                SystemClock& operator=(
-                    SystemClock&&
-                ) = delete;
-
-
-                static SystemClock&
-                GetInstance(
-                    ITimeSource* timeSource =
-                        HighResolutionTimeSourceT<
-                            TLockPolicy
-                        >::GetInstance()
-                ) {
-                    static SystemClock
-                        instance(
-                            timeSource
-                        );
-
-                    return instance;
-                }
-
-
-                TTime GetTime() const override {
-                    const TTick resolution =
-                        _core.
-                            GetResolutionNanoseconds();
-
-                    return
-                        TimeTraits<TTime>::
-                            template
-                            FromNanoseconds<TTick>(
-                                _core.
-                                    GetTimeNanoseconds(),
-                                resolution
-                            );
-                }
-
-
-                TTime GetResolution() const override {
-                    const TTick resolution =
-                        _core.
-                            GetResolutionNanoseconds();
-
-                    return
-                        TimeTraits<TTime>::
-                            template
-                            FromNanoseconds<TTick>(
-                                resolution,
-                                resolution
-                            );
-                }
-
-
-                void SetTime(
-                    const TTime& time
-                ) override {
-                    _core.
-                        SetTimeNanoseconds(
-                            TimeTraits<TTime>::
-                                template
-                                ToNanoseconds<TTick>(
-                                    time
-                                )
-                        );
-                }
-
-
-                TTick
-                GetSynchronizationTimestampNanoseconds()
-                    const override {
-                    return
-                        _core.
-                            GetSynchronizationTimestampNanoseconds();
-                }
-
-
-                ClockSynchronizationResult<TTick>
-                SubmitSynchronizationSample(
-                    const ClockSynchronizationSample<TTick>&
-                        sample,
-                    ClockSynchronizationAdjustmentMode
-                        adjustmentMode =
-                            ClockSynchronizationAdjustmentMode::
-                                SlewOnly
-                ) override {
-                    return
-                        _core.
-                            SubmitSynchronizationSample(
-                                sample,
-                                adjustmentMode
-                            );
-                }
-
-
-                ClockSynchronizationStatus<TTick>
-                GetSynchronizationStatus()
-                    const override {
-                    return
-                        _core.
-                            GetSynchronizationStatus();
-                }
-
-
-                void ConfigureSynchronization(
-                    const ClockSynchronizationConfig&
-                        config
-                ) override {
-                    _core.
-                        ConfigureSynchronization(
-                            config
-                        );
-                }
-
-
-                ClockSynchronizationConfig
-                GetSynchronizationConfig()
-                    const override {
-                    return
-                        _core.
-                            GetSynchronizationConfig();
-                }
-
-
-                void ResetSynchronization() override {
-                    _core.
-                        ResetSynchronization();
-                }
-
-
-                bool TrySetCallback(
-                    const TTime& time,
-                    ClockCallback callback
-                ) {
-                    return
-                        _core.
-                            TrySetCallbackNanoseconds(
-                                TimeTraits<TTime>::
-                                    template
-                                    ToNanoseconds<TTick>(
-                                        time
-                                    ),
-                                std::move(
-                                    callback
-                                )
-                            );
-                }
-
-
-                void SetCallback(
-                    const TTime& time,
-                    ClockCallback callback
-                ) override {
-                    TrySetCallback(
-                        time,
-                        std::move(
-                            callback
-                        )
-                    );
-                }
-
-
-                void Update() override {
-                    _core.Update();
-                }
-
-
-                void ClearCallbacks() override {
-                    _core.
-                        ClearCallbacks();
-                }
-
-
-                Observable::ObserverHandlePtr
-                RegisterObserver(
-                    ISystemClockObserver<TTick>* observer
-                ) {
-                    return
-                        _core.RegisterObserver(
-                            observer
-                        );
-                }
-
-
-                void UnregisterObserver(
-                    ISystemClockObserver<TTick>* observer
-                ) {
-                    _core.UnregisterObserver(
-                        observer
-                    );
-                }
-
-
-                ITimeSource*
-                GetTimeSource() const {
-                    return
-                        _core.
-                            GetTimeSource();
-                }
-        };
-
-
-        template<
-            typename TTime = DefaultClockTime,
-            typename TTick = ClockTick
-        >
-        using SingleThreadedSystemClock =
-            SystemClock<
-                TTime,
-                NoLockPolicy,
-                TTick
-            >;
-
+namespace ESPressio::Timing {
+/// <summary>Canonical raw source adapter; synchronization never changes System::Clock::Monotonic.</summary>
+class SystemMonotonicTimeSource final : public ITimeSource {
+public:
+    std::uint64_t GetTicks() const override { return System::Clock::Monotonic().NowNanoseconds(); }
+    std::uint64_t GetTicksPerSecond() const override { return 1000000000ull; }
+    static SystemMonotonicTimeSource& Instance() noexcept { static SystemMonotonicTimeSource source; return source; }
+};
+/// <summary>One shared nanosecond timeline/model across all typed facades with the same lock/tick policy.</summary>
+/// <remarks>Time/status/capture reads copy/evaluate fixed state under a short lock and never advance discipline or notify.
+/// Explicit operations own estimator work and optional Observable diagnostics. Callback closures are an explicit general
+/// scheduler convenience, outside the bounded synchronization model and Primitive hot path.</remarks>
+template<class TLockPolicy=ThreadSafeLockPolicy,class TTick=ClockTick> class SystemClockCore final {
+    static_assert(std::is_same_v<TTick,std::uint64_t>,"The distributed System timeline uses canonical uint64 nanoseconds");
+    using Callback=std::function<void()>;
+    struct Scheduled { TTick Time=0; Callback Function; };
+    ITimeSource* _source;
+    mutable typename TLockPolicy::Mutex _clockMutex,_callbacksMutex;
+    ClockDiscipline<8> _discipline;
+    std::shared_ptr<TimingObservable> _observable=CreateTimingObservable();
+    TimeReliability _notified=TimeReliability::Unqualified;
+    std::array<Scheduled,ESPRESSIO_TIMING_MAX_CALLBACKS> _callbacks{};
+    explicit SystemClockCore(ITimeSource* source):_source(source ? source : &SystemMonotonicTimeSource::Instance()) {}
+    TTick Raw() const { return Internal::TicksToNanoseconds(_source->GetTicks(),_source->GetTicksPerSecond()); }
+    void NotifyState(TimeReliability before,const ClockSynchronizationStatus& status) {
+        if (before==status.Reliability) return;
+        _observable->template Notify<ISystemClockObserver<TTick>>([&](auto* observer) {
+            observer->OnSystemClockSynchronizationStateChanged(before,status.Reliability,status);
+        });
     }
-
+public:
+    SystemClockCore(const SystemClockCore&)=delete;
+    SystemClockCore& operator=(const SystemClockCore&)=delete;
+    static SystemClockCore& GetInstance(ITimeSource* source=nullptr) { static SystemClockCore instance(source); return instance; }
+    /// <summary>Evaluates one published model at its raw source coordinate; no callback, allocation or state update.</summary>
+    TTick GetTimeNanoseconds() const {
+        typename TLockPolicy::Guard lock(_clockMutex);
+        return _discipline.Model().Evaluate(Raw());
+    }
+    TTick GetResolutionNanoseconds() const {
+        if (_source==&SystemMonotonicTimeSource::Instance()) return System::Clock::Monotonic().ResolutionNanoseconds();
+        return Internal::GetSourceResolution(_source->GetTicksPerSecond());
+    }
+    /// <summary>Captures semantic origin time and reliability together, before any family-owned bounded wait.</summary>
+    QualifiedTime CaptureQualifiedTime() const {
+        typename TLockPolicy::Guard lock(_clockMutex); const auto now=Raw();
+        return {_discipline.Model().Evaluate(now),_discipline.GetStatus(now).Reliability};
+    }
+    ClockTimestampCapture<> CaptureSynchronizationTimestamp(ClockCaptureQuality quality,ClockUncertainty uncertainty) const {
+        typename TLockPolicy::Guard lock(_clockMutex); const auto now=Raw();
+        return {_discipline.Model().Evaluate(now),now,uncertainty,quality};
+    }
+    /// <summary>Copies the current mapping for a provider that retains capture-consistent model evidence.</summary>
+    ClockModelSnapshot GetClockModelSnapshot() const { typename TLockPolicy::Guard lock(_clockMutex); return _discipline.Model(); }
+    ClockConfigurationStatus TrySetTimeNanoseconds(TTick time) {
+        TTick previous=0; ClockSynchronizationStatus before,after; ClockConfigurationStatus result;
+        {
+            typename TLockPolicy::Guard lock(_clockMutex); const auto now=Raw();
+            previous=_discipline.Model().Evaluate(now); before=_discipline.GetStatus(now);
+            result=_discipline.TryRebase(time,now);
+            if (result!=ClockConfigurationStatus::Success) return result;
+            after=_discipline.GetStatus(now); _notified=after.Reliability;
+        }
+        _observable->template Notify<ISystemClockObserver<TTick>>([&](auto* observer) {
+            observer->OnSystemClockTimeSet(previous,time,Internal::SignedDifference(time,previous));
+            observer->OnSystemClockSynchronizationReset(before,after);
+        });
+        NotifyState(before.Reliability,after); return result;
+    }
+    void SealContinuity() { typename TLockPolicy::Guard lock(_clockMutex); _discipline.SealContinuity(); }
+    bool IsContinuitySealed() const { typename TLockPolicy::Guard lock(_clockMutex); return _discipline.IsContinuitySealed(); }
+    ClockSynchronizationResult SubmitSynchronizationObservation(const ClockSynchronizationObservation<>& observation) {
+        ClockSynchronizationResult result; ClockSynchronizationStatus status; TimeReliability previous; TTick time;
+        {
+            typename TLockPolicy::Guard lock(_clockMutex); const auto now=Raw();
+            time=_discipline.Model().Evaluate(now); previous=_notified;
+            result=_discipline.Submit(observation,now,GetResolutionNanoseconds());
+            status=_discipline.GetStatus(now); _notified=status.Reliability;
+        }
+        _observable->template Notify<ISystemClockObserver<TTick>>([&](auto* observer) {
+            if (result.Accepted) {
+                observer->OnSystemClockSynchronizationSampleAccepted(time,time,0,result,status);
+                if (status.Reliability==TimeReliability::Synchronized && previous!=TimeReliability::Synchronized)
+                    observer->OnSystemClockSynchronized(time,time,0,result,status);
+            } else observer->OnSystemClockSynchronizationSampleRejected(result,status);
+        });
+        NotifyState(previous,status); return result;
+    }
+    ClockSynchronizationStatus GetSynchronizationStatus() const { typename TLockPolicy::Guard lock(_clockMutex); return _discipline.GetStatus(Raw()); }
+    ClockSynchronizationProfile GetSynchronizationProfile() const { typename TLockPolicy::Guard lock(_clockMutex); return _discipline.GetProfile(); }
+    ClockConfigurationStatus ConfigureSynchronization(const ClockSynchronizationProfile& profile) {
+        ClockSynchronizationProfile previousProfile; ClockSynchronizationStatus status; TimeReliability previous;
+        ClockConfigurationStatus result;
+        {
+            typename TLockPolicy::Guard lock(_clockMutex); previousProfile=_discipline.GetProfile(); previous=_notified;
+            const auto now=Raw(); result=_discipline.Configure(profile,now);
+            if (result!=ClockConfigurationStatus::Success) return result;
+            status=_discipline.GetStatus(now); _notified=status.Reliability;
+        }
+        _observable->template Notify<ISystemClockObserver<TTick>>([&](auto* observer) {
+            observer->OnSystemClockSynchronizationConfigurationChanged(previousProfile,profile);
+        });
+        NotifyState(previous,status); return result;
+    }
+    ClockConfigurationStatus SelectSynchronizationReference(std::uint64_t reference) {
+        ClockSynchronizationStatus status; TimeReliability previous; ClockConfigurationStatus result;
+        {
+            typename TLockPolicy::Guard lock(_clockMutex); const auto now=Raw(); previous=_notified;
+            result=_discipline.SelectReference(reference,now); status=_discipline.GetStatus(now); _notified=status.Reliability;
+        }
+        NotifyState(previous,status); return result;
+    }
+    void SetSynchronizationActivity(bool acquiring,bool referenceAvailable) {
+        ClockSynchronizationStatus status; TimeReliability previous;
+        { typename TLockPolicy::Guard lock(_clockMutex); const auto now=Raw(); previous=_notified;
+          _discipline.SetActivity(acquiring,referenceAvailable,now); status=_discipline.GetStatus(now); _notified=status.Reliability; }
+        NotifyState(previous,status);
+    }
+    void ResetSynchronization() {
+        ClockSynchronizationStatus before,after;
+        { typename TLockPolicy::Guard lock(_clockMutex); const auto now=Raw(); before=_discipline.GetStatus(now);
+          _discipline.Reset(now); after=_discipline.GetStatus(now); _notified=after.Reliability; }
+        _observable->template Notify<ISystemClockObserver<TTick>>([&](auto* observer) { observer->OnSystemClockSynchronizationReset(before,after); });
+        NotifyState(before.Reliability,after);
+    }
+    void RecordSynchronizationDeadlineMiss() { typename TLockPolicy::Guard lock(_clockMutex); _discipline.RecordSchedulerDeadlineMiss(); }
+    bool TrySetCallbackNanoseconds(TTick time,Callback callback) {
+        bool accepted=false;
+        if (callback) {
+            typename TLockPolicy::Guard lock(_callbacksMutex);
+            for (auto& slot:_callbacks) if (!slot.Function) { slot.Time=time; slot.Function=std::move(callback); accepted=true; break; }
+        }
+        _observable->template Notify<ISystemClockObserver<TTick>>([&](auto* observer) {
+            if (accepted) observer->OnSystemClockCallbackScheduled(time); else observer->OnSystemClockCallbackScheduleFailed(time);
+        });
+        return accepted;
+    }
+    /// <summary>Explicit service point for reliability diagnostics and bounded due-callback extraction.</summary>
+    void Update() {
+        ClockSynchronizationStatus status; TimeReliability previous; TTick now;
+        { typename TLockPolicy::Guard lock(_clockMutex); const auto raw=Raw(); now=_discipline.Model().Evaluate(raw);
+          status=_discipline.GetStatus(raw); previous=_notified; _notified=status.Reliability; }
+        NotifyState(previous,status);
+        std::array<Scheduled,ESPRESSIO_TIMING_MAX_CALLBACKS> due{};
+        { typename TLockPolicy::Guard lock(_callbacksMutex);
+          for (std::size_t i=0;i<_callbacks.size();++i) if (_callbacks[i].Function && now>=_callbacks[i].Time) {
+              due[i]=std::move(_callbacks[i]); _callbacks[i]={};
+          } }
+        for (auto& callback:due) if (callback.Function) {
+            try { callback.Function(); }
+            catch (...) {
+                const auto actual=GetTimeNanoseconds(); const auto cause=std::current_exception();
+                _observable->template Notify<ISystemClockObserver<TTick>>([&](auto* observer) {
+                    observer->OnSystemClockCallbackExecutionFailed(callback.Time,actual,Internal::SignedDifference(actual,callback.Time),cause);
+                });
+                std::rethrow_exception(cause);
+            }
+            const auto actual=GetTimeNanoseconds();
+            _observable->template Notify<ISystemClockObserver<TTick>>([&](auto* observer) {
+                observer->OnSystemClockCallbackExecuted(callback.Time,actual,Internal::SignedDifference(actual,callback.Time));
+            });
+        }
+    }
+    void ClearCallbacks() {
+        std::size_t count=0;
+        { typename TLockPolicy::Guard lock(_callbacksMutex); for (auto& slot:_callbacks) { if (slot.Function) ++count; slot={}; } }
+        if (count) _observable->template Notify<ISystemClockObserver<TTick>>([&](auto* observer) { observer->OnSystemClockCallbacksCleared(count); });
+    }
+    Observable::ObserverHandlePtr RegisterObserver(ISystemClockObserver<TTick>* observer) { return _observable->RegisterObserver(observer); }
+    void UnregisterObserver(ISystemClockObserver<TTick>* observer) { _observable->UnregisterObserver(observer); }
+    ITimeSource* GetTimeSource() const noexcept { return _source; }
+};
+/// <summary>Unit-aware view of the shared sealed System timeline; representation never owns a separate estimator.</summary>
+template<class TTime=DefaultClockTime,class TLockPolicy=ThreadSafeLockPolicy,class TTick=ClockTick>
+class SystemClock : public ISystemClock<TTime>,public IClockSynchronizationTarget {
+    using Core=SystemClockCore<TLockPolicy,TTick>;
+    Core& _core;
+    explicit SystemClock(ITimeSource* source):_core(Core::GetInstance(source)) {}
+public:
+    using TimeType=TTime; using TickType=TTick;
+    using ClockCallback=typename ISystemClock<TTime>::ClockCallback;
+    SystemClock(const SystemClock&)=delete; SystemClock& operator=(const SystemClock&)=delete;
+    static SystemClock& GetInstance(ITimeSource* source=nullptr) { static SystemClock instance(source); return instance; }
+    TTime GetTime() const override { return TimeTraits<TTime>::template FromNanoseconds<TTick>(_core.GetTimeNanoseconds(),_core.GetResolutionNanoseconds()); }
+    TTime GetResolution() const override { const auto resolution=_core.GetResolutionNanoseconds(); return TimeTraits<TTime>::template FromNanoseconds<TTick>(resolution,resolution); }
+    ClockConfigurationStatus TrySetTime(const TTime& time) override { return _core.TrySetTimeNanoseconds(TimeTraits<TTime>::template ToNanoseconds<TTick>(time)); }
+    void SealContinuity() override { _core.SealContinuity(); }
+    bool IsContinuitySealed() const override { return _core.IsContinuitySealed(); }
+    QualifiedTime CaptureQualifiedTime() const { return _core.CaptureQualifiedTime(); }
+    ClockModelSnapshot GetClockModelSnapshot() const { return _core.GetClockModelSnapshot(); }
+    ClockTimestampCapture<> CaptureSynchronizationTimestamp(ClockCaptureQuality quality=ClockCaptureQuality::SoftwareUnbounded,ClockUncertainty uncertainty={}) const override {
+        return _core.CaptureSynchronizationTimestamp(quality,uncertainty);
+    }
+    ClockSynchronizationResult SubmitSynchronizationObservation(const ClockSynchronizationObservation<>& observation) override { return _core.SubmitSynchronizationObservation(observation); }
+    ClockSynchronizationStatus GetSynchronizationStatus() const override { return _core.GetSynchronizationStatus(); }
+    ClockConfigurationStatus ConfigureSynchronization(const ClockSynchronizationProfile& profile) override { return _core.ConfigureSynchronization(profile); }
+    ClockSynchronizationProfile GetSynchronizationProfile() const override { return _core.GetSynchronizationProfile(); }
+    ClockConfigurationStatus SelectSynchronizationReference(std::uint64_t reference) override { return _core.SelectSynchronizationReference(reference); }
+    void SetSynchronizationActivity(bool acquiring,bool available) override { _core.SetSynchronizationActivity(acquiring,available); }
+    void ResetSynchronization() override { _core.ResetSynchronization(); }
+    void RecordSynchronizationDeadlineMiss() override { _core.RecordSynchronizationDeadlineMiss(); }
+    bool TrySetCallback(const TTime& time,ClockCallback callback) { return _core.TrySetCallbackNanoseconds(TimeTraits<TTime>::template ToNanoseconds<TTick>(time),std::move(callback)); }
+    void SetCallback(const TTime& time,ClockCallback callback) override { (void)TrySetCallback(time,std::move(callback)); }
+    void Update() override { _core.Update(); }
+    void ClearCallbacks() override { _core.ClearCallbacks(); }
+    Observable::ObserverHandlePtr RegisterObserver(ISystemClockObserver<TTick>* observer) { return _core.RegisterObserver(observer); }
+    void UnregisterObserver(ISystemClockObserver<TTick>* observer) { _core.UnregisterObserver(observer); }
+    ITimeSource* GetTimeSource() const noexcept { return _core.GetTimeSource(); }
+};
+template<class TTime=DefaultClockTime,class TTick=ClockTick>
+using SingleThreadedSystemClock=SystemClock<TTime,NoLockPolicy,TTick>;
 }

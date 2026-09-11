@@ -1,13 +1,15 @@
 cmake_minimum_required(VERSION 3.16)
 
 project(
-    ESPressioTimingV2Tests
+    ESPressioTimingContracts
     LANGUAGES CXX
 )
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+set(ESPRESSIO_SYSTEM_SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/../../ESPressio-System" CACHE PATH "System coordinated source checkout")
+include_directories(${ESPRESSIO_SYSTEM_SOURCE_DIR}/src)
 
 add_executable(
     test_generic_timing
@@ -150,3 +152,18 @@ add_test(
     NAME Observers
     COMMAND test_observers
 )
+
+find_package(Threads REQUIRED)
+foreach(test clock_qualification clock_affine_regression stopwatch_concurrency)
+    add_executable(test_${test} test_${test}.cpp)
+    target_include_directories(test_${test} PRIVATE ../src ../test_support)
+    target_link_libraries(test_${test} PRIVATE Threads::Threads)
+    add_test(NAME ${test} COMMAND test_${test})
+endforeach()
+
+foreach(test gptimer_compile gptimer_fallback arduino_compile)
+    add_executable(test_${test} test_${test}.cpp)
+    target_include_directories(test_${test} PRIVATE ../src ../test_support)
+    add_test(NAME ${test} COMMAND test_${test})
+endforeach()
+target_compile_definitions(test_arduino_compile PRIVATE ARDUINO=1)

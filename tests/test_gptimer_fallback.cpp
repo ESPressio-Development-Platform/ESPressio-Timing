@@ -1,19 +1,19 @@
+#include <ESPressio_Timing.hpp>
+#include "CounterTestProvider.hpp"
 #include <cassert>
-
-#include "ESPressio_Timing.hpp"
-
-#if !ESPRESSIO_TIMING_HAS_GPTIMER
-    #error "The fallback test requires compile-time GPTimer availability"
-#endif
-
 using namespace ESPressio::Timing;
-
 int main() {
-    HighResolutionTimeSource* source =
-        HighResolutionTimeSource::GetInstance();
-
-    assert(!source->GetIsUsingGPTimer());
-    assert(source->GetTicksPerSecond() == 1000000ULL);
-    assert(source->GetTicks() == 0);
-    return 0;
+    TestMonotonic monotonic; monotonic.Now=1234;
+    CounterTestProvider provider; provider.FailCreate=true;
+    ESPressio::System::Clock::SetMonotonicClock(&monotonic);
+    ESPressio::System::Clock::SetHighResolutionCounterProvider(&provider);
+    auto* source=HighResolutionTimeSource::GetInstance();
+    assert(!source->GetIsUsingHighResolutionCounter() && source->GetTicksPerSecond()==1000000000);
+    assert(source->GetTicks()==1234);
+    GPTimerClock<> absent(true); assert(!absent.GetIsAvailable() && !absent.GetIsRunning());
+    provider.FailCreate=false; provider.FailStart=true;
+    GPTimerClock<> failed; assert(!failed.GetIsAvailable());
+    assert(failed.GetInitializationResult().Status==ESPressio::System::PlatformStatus::HardwareFailure);
+    ESPressio::System::Clock::ResetHighResolutionCounterProvider();
+    ESPressio::System::Clock::ResetMonotonicClock();
 }

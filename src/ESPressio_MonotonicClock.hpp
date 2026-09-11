@@ -14,16 +14,16 @@ namespace Timing {
     /// This clock deliberately has no settable or distributed-time semantics. It exposes
     /// elapsed physical time from <see cref="HighResolutionTimeSource"/> and is therefore
     /// suitable for scheduling, timeout measurement and other operations which must not
-    /// move when <see cref="SystemClock"/> is stepped or slewed.
+    /// move when <see cref="SystemClock"/> is rebased before sealing or slewed.
     ///
     /// The default source is resolved lazily on first clock read rather than during clock
-    /// construction. This allows global/static PrecisionThread objects to be constructed
+    /// construction. This allows global/static precision-capability host objects to be constructed
     /// before a platform installs its System providers without prematurely freezing the
     /// shared Timing source onto the portable fallback. On ESP32, once
     /// ESP32Platform::InstallSystemProviders() has installed the high-resolution counter
     /// provider, the first read creates the single shared GPTimer-backed Timing source.
     ///
-    /// Every default PrecisionThread consumes this same monotonic clock/source; no hardware
+    /// Every default precision-capability host consumes this same monotonic clock/source; no hardware
     /// timer is allocated per thread.
     /// </remarks>
 

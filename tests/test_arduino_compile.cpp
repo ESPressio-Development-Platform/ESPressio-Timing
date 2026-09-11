@@ -1,22 +1,17 @@
+#include <ESPressio_Timing.hpp>
+#include "CounterTestProvider.hpp"
 #include <cassert>
-
-#include "ESPressio_Timing.hpp"
-
-#if ESPRESSIO_TIMING_HAS_GPTIMER
-    #error "GPTimer must not be exposed on a generic Arduino target"
-#endif
-
 int main() {
-    ESPressio::Timing::StopwatchClock clock;
-    ESPressio::Timing::HighResolutionTimeSource* source =
-        ESPressio::Timing::HighResolutionTimeSource::GetInstance();
-
-    ArduinoMicrosValue() = 0xFFFFFFF0UL;
-    const uint64_t beforeRollover = source->GetTicks();
-    ArduinoMicrosValue() = 0x00000010UL;
-    const uint64_t afterRollover = source->GetTicks();
-
-    assert(afterRollover > beforeRollover);
-    assert(clock.GetResolution().value == 1);
-    return 0;
+    TestMonotonic monotonic;
+    ESPressio::System::Clock::SetMonotonicClock(&monotonic);
+    ESPressio::System::Clock::ResetHighResolutionCounterProvider();
+    auto& clock=ESPressio::Timing::SystemClock<>::GetInstance();
+    monotonic.Now=0xfffffff0ull*1000;
+    const auto before=clock.CaptureSynchronizationTimestamp();
+    monotonic.Now=0x100000010ull*1000;
+    const auto after=clock.CaptureSynchronizationTimestamp();
+    assert(after.MonotonicTimeNanoseconds>before.MonotonicTimeNanoseconds);
+    assert(after.Quality==ESPressio::Timing::ClockCaptureQuality::SoftwareUnbounded && !after.Uncertainty.IsKnown);
+    assert(clock.GetResolution().value==1 && clock.GetResolution().orderOfMagnitude==ESPressio::Units::Micro);
+    ESPressio::System::Clock::ResetMonotonicClock();
 }

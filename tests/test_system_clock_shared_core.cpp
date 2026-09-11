@@ -60,7 +60,7 @@ int main() {
     /*
      * Set through the ordinary facade.
      */
-    ordinary.SetTime(
+    ordinary.TrySetTime(
         DefaultClockTime(
             5,
             Units::Base
@@ -89,7 +89,7 @@ int main() {
     /*
      * Set through the Serializable facade and read through the ordinary view.
      */
-    serializable.SetTime(
+    serializable.TrySetTime(
         SerializableClockTime(
             10,
             Units::Base
@@ -135,5 +135,9 @@ int main() {
 
     assert(fired);
 
+    // The one-way seal is shared and blocks every subsequent hard rebase.
+    ordinary.SealContinuity();
+    assert(serializable.IsContinuitySealed());
+    assert(serializable.TrySetTime(SerializableClockTime(0, Units::Nano)) == ClockConfigurationStatus::ContinuitySealed);
     return 0;
 }

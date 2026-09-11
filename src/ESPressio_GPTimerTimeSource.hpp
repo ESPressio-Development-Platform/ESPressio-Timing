@@ -12,17 +12,16 @@
 #endif
 
 #ifndef ESPRESSIO_TIMING_HAS_GPTIMER
-    // Compatibility macro retained for existing consumers. The implementation
-    // is now provider-driven and therefore no longer depends on an ESP32
-    // compile-time capability check.
+    // The generic provider-backed type is available on every target; runtime
+    // availability is reported by the installed System counter provider.
     #define ESPRESSIO_TIMING_HAS_GPTIMER 1
 #endif
 
 namespace ESPressio {
 namespace Timing {
 
-    /// <summary>Compatibility time-source adapter exposing the historical GPTimer API over the platform-neutral System high-resolution counter.</summary>
-    /// <remarks>New code should prefer <c>HighResolutionTimeSource</c>; this adapter no longer owns or directly references ESP-IDF GPTimer resources.</remarks>
+    /// <summary>Time-source adapter owning one platform-neutral System high-resolution counter.</summary>
+    /// <remarks>Use HighResolutionTimeSource for a shared source; this explicit source owns its separately accounted counter.</remarks>
 
 class GPTimerTimeSource : public ITimeSource {
     private:

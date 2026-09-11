@@ -1,755 +1,236 @@
 # ESPressio Timing
 
-Timing Components of the ESPressio Development Platform.
+Timing provides unit-aware clocks and a bounded, transport-neutral distributed
+clock discipline. It depends on System, Units and Observable on their coordinated
+`primitives_redesign` branches. It has no Task, Threads, Radio, Mesh, Primitive or
+Serializable dependency. Applications choosing a Serializable time representation
+add that optional dependency through Units.
 
-High-resolution system, stopwatch, and RTC clock abstractions with a generic public time representation.
+The default synchronized System timeline maps `System::Clock::Monotonic()` to
+System nanoseconds. Synchronization never changes that raw duration/deadline clock.
+An explicit `ITimeSource` can be supplied when composing a test or a different
+validated source. All typed SystemClock facades sharing a lock/tick policy use the
+same core, continuity seal, estimator and callback scheduler.
 
-## Active Working-Branch Platform Architecture
+Include `ESPressio_TimingSystemClock.hpp` for an unambiguous synchronized clock,
+`ESPressio_MonotonicClock.hpp` for a duration clock, or `ESPressio_Timing.hpp` for the
+complete library. Install concrete System providers before constructing/initializing
+clock services. Singleton construction and optional observer registration are
+bootstrap work; clock/model/status getters allocate nothing and invoke no callbacks.
 
-The `feature/29-platform-clock-abstractions` source line moves target-specific clock acquisition out of reusable ESPressio-Timing code. Timing owns clock, stopwatch, synchronization, discipline, scheduling, and public time-representation semantics; primitive monotonic-clock and high-resolution-counter capabilities are supplied by ESPressio-System, with target implementations such as ESPressio-ESP32 providing the underlying hardware/runtime access.
-
-Reusable Timing code therefore no longer selects or owns ESP-IDF `esp_timer`/GPTimer facilities, Arduino `micros()`, or host `std::chrono` fallbacks directly. Platform selection occurs through the installed ESPressio-System clock providers. On ESP32, applications should install the applicable ESPressio-ESP32/System providers before Timing first requires platform clock or high-resolution-counter services.
-
-For the disciplined Timing System Clock API, new cross-library code should include:
+## Bootstrap and continuous time
 
 ```cpp
 #include <ESPressio_TimingSystemClock.hpp>
-```
-
-The primitive System platform-clock contract is exposed separately through `ESPressio_SystemPlatformClock.hpp`. The historical `GPTimerTimeSource` remains as a source-compatibility adapter over `System::Clock::IHighResolutionCounter`; new code should prefer the generic high-resolution-counter terminology and `GetIsUsingHighResolutionCounter()`.
-
-This working branch no longer requires consumers to include ESP-IDF timer headers or handle `esp_err_t`/GPTimer-native types in Timing APIs.
-
-### Current ESPressio dependencies
-
-- **ESPressio Units `main`**
-- **ESPressio Observable `main`**
-
-During the release restructuring, Timing consumes Units and Observable from `main`. Timing itself remains independent of ESPressio Serializable; applications selecting Serializable Unit time types consume Serializable through Units, and CI validates that path against Serializable `main`.
-
-
-Timing provides first-class Observer notifications throughout meaningful Timing state transitions using ESPressio Observable. The synchronization and generic `TTime` architecture remains unchanged.
-
-The library no longer defines one globally fixed `ClockTime` contract for every clock. Instead, clock interfaces and implementations are parameterized by their public `TTime` representation.
-
-This allows an application to use ordinary ESPressio Unit time values, opt-in Serializable Unit time values, or another compatible/custom representation without duplicating the Timing algorithms.
-
-## Observer Notifications
-
-**ESPressio Observable** is a required dependency and Timing exposes observer interfaces for meaningful Timing operations.
-
-Timing deliberately does **not** notify for ordinary reads such as `GetTime()`, `GetResolution()`, `GetIsRunning()`, or `GetSynchronizationStatus()`. Observer callbacks represent operations and state transitions rather than polling activity.
-
-Observable dispatchers are internally owned by `std::shared_ptr`, matching ESPressio Observable's notification-lifetime contract. Timing clocks themselves do not need to inherit from `ThreadSafeObservable`.
-
-Observer exceptions are contained by Timing and do not alter clock state or abort the Timing operation being observed.
-
-### System Clock observers
-
-Implement:
-
-```cpp
-ISystemClockObserver<ClockTick>
-```
-
-and register through any typed System Clock facade:
-
-```cpp
-class ClockObserver:
-    public Timing::ISystemClockObserver<
-        Timing::ClockTick
-    > {
-public:
-    void OnSystemClockSynchronized(
-        Timing::ClockTick before,
-        Timing::ClockTick after,
-        int64_t immediateDifference,
-        const Timing::ClockSynchronizationResult<
-            Timing::ClockTick
-        >& result,
-        const Timing::ClockSynchronizationStatus<
-            Timing::ClockTick
-        >& status
-    ) override {
-        //...
-    }
-};
-
-ClockObserver observer;
-
-auto handle =
-    Timing::SystemClock<>::GetInstance().
-        RegisterObserver(&observer);
-```
-
-Because the observable belongs to the shared `SystemClockCore`, registering through one `SystemClock<TTime>` facade observes operations performed through every facade sharing that core.
-
-System Clock notifications include:
-
-```text
-OnSystemClockTimeSet
-OnSystemClockSynchronizationSampleAccepted
-OnSystemClockSynchronizationSampleRejected
-OnSystemClockSynchronized
-OnSystemClockSynchronizationStateChanged
-OnSystemClockSynchronizationReset
-OnSystemClockSynchronizationConfigurationChanged
-OnSystemClockCallbackScheduled
-OnSystemClockCallbackScheduleFailed
-OnSystemClockCallbackExecuted
-OnSystemClockCallbackExecutionFailed
-OnSystemClockCallbacksCleared
-```
-
-#### Synchronization before/after values
-
-`OnSystemClockSynchronized()` receives:
-
-```text
-clockBeforeNanoseconds
-clockAfterNanoseconds
-immediateDifferenceNanoseconds
-ClockSynchronizationResult
-ClockSynchronizationStatus
-```
-
-The `immediateDifferenceNanoseconds` value describes the **actual immediate public System Clock change caused by processing that synchronization sample**.
-
-This distinction matters for `SlewOnly`:
-
-```text
-measured offset       = +2,000,000 ns
-pending correction    = +2,000,000 ns
-clock before          = 10,000,000 ns
-clock after           = 10,000,000 ns
-immediate difference  = 0 ns
-```
-
-The correction is scheduled for gradual slewing, so reporting a +2 ms instantaneous clock jump would be incorrect.
-
-For `StepIfUnsynchronized` or `StepAlways`, where an immediate step is actually applied, the before/after difference reports that real step.
-
-### Stopwatch observers
-
-`IStopwatchClockObserver<TTime, TTick>` provides callbacks for:
-
-```text
-OnStopwatchStarted
-OnStopwatchStopped
-OnStopwatchReset
-OnStopwatchRestarted
-OnStopwatchTimeSet
-```
-
-Callbacks include relevant elapsed-time values, running state, and before/after difference where applicable.
-
-`GPTimerClock` delegates its observer registration to its internal Stopwatch implementation, so the same Stopwatch observer interface is used.
-
-### RTC observers
-
-`IRTCClockObserver<TTime, TTick>` provides callbacks for:
-
-```text
-OnRTCSynchronizationSucceeded
-OnRTCSynchronizationFailed
-OnRTCInterruptReceived
-OnRTCInterruptTimeReceived
-OnRTCTimeWriteSucceeded
-OnRTCTimeWriteFailed
-```
-
-Successful synchronization and write callbacks include the previous and resulting RTC-clock values plus their signed nanosecond difference.
-
-### Observer handles
-
-Registration returns the normal ESPressio Observable owning handle:
-
-```cpp
-Observable::ObserverHandlePtr
-```
-
-Destroying or explicitly unregistering the handle removes the Observer registration according to the standard ESPressio Observable lifecycle model.
-
-## System Clock Synchronization
-
-Timing provides a transport-independent synchronization and clock-discipline layer to the shared `SystemClockCore`.
-
-The design deliberately separates:
-
-```text
-transport
-    |
-    | captures / carries four timestamps
-    v
-IClockSynchronizationTarget
-    |
-    v
-ClockDiscipline
-    |
-    +-- offset estimation
-    +-- round-trip-delay estimation
-    +-- sample validation/rejection
-    +-- phase filtering
-    +-- monotonic phase slewing
-    +-- residual drift estimation
-    +-- continuous rate correction
-    |
-    v
-SystemClockCore
-    |
-    +-------------------------+
-    |                         |
-    v                         v
-SystemClock<Time>   SystemClock<SerializableTime>
-```
-
-Timing has no ESP-NOW, Wi-Fi, UDP, Ethernet, CAN, LoRa, MAC-address, peer, master-election, or packet-format concepts.
-
-A transport library only needs to implement the message exchange required to capture four timestamps:
-
-```text
-Local                         Remote
-
-T1 request transmit  -------->
-                      <-------- T2 request receive
-                      <-------- T3 response transmit
-T4 response receive
-```
-
-and submit:
-
-```cpp
-ClockSynchronizationSample<ClockTick> sample;
-
-sample.LocalRequestTransmitTime   = t1;
-sample.RemoteRequestReceiveTime   = t2;
-sample.RemoteResponseTransmitTime = t3;
-sample.LocalResponseReceiveTime   = t4;
-
-auto result =
-    SystemClock<>::GetInstance().
-        SubmitSynchronizationSample(
-            sample
-        );
-```
-
-The standard two-way estimates are calculated inside Timing:
-
-```text
-round-trip delay =
-    (T4 - T1) - (T3 - T2)
-
-clock offset =
-    ((T2 - T1) + (T3 - T4)) / 2
-```
-
-### Synchronization target interface
-
-Transport implementations should depend on:
-
-```cpp
-IClockSynchronizationTarget<ClockTick>
-```
-
-rather than on a particular `SystemClock<TTime>` specialization.
-
-The interface exposes:
-
-```cpp
-GetSynchronizationTimestampNanoseconds()
-SubmitSynchronizationSample(...)
-GetSynchronizationStatus()
-ConfigureSynchronization(...)
-GetSynchronizationConfig()
-ResetSynchronization()
-```
-
-Because synchronization operates in the raw nanosecond clock domain, it is independent of the public Unit representation.
-
-### Synchronization state
-
-Synchronization status reports:
-
-```cpp
-ClockSynchronizationState::Unsynchronized
-ClockSynchronizationState::Acquiring
-ClockSynchronizationState::Synchronized
-```
-
-along with:
-
-```text
-last measured offset
-filtered offset
-pending phase correction
-applied correction
-round-trip delay
-estimated drift in ppm
-accepted/rejected sample counts
-last accepted sample time
-```
-
-A synchronized state can become stale when no accepted sample has arrived within the configured maximum age.
-
-### Sample rejection
-
-Malformed exchanges are rejected.
-
-A configurable maximum round-trip delay also allows a transport to discard high-jitter/high-latency samples before they influence the clock.
-
-### Monotonic phase slewing
-
-The default adjustment mode is:
-
-```cpp
-ClockSynchronizationAdjustmentMode::SlewOnly
-```
-
-A synchronization sample therefore does not abruptly rebase the System Clock.
-
-Instead, the measured phase error is removed gradually at the configured maximum slew rate. This preserves monotonic progression and is the recommended mode while deadline-driven consumers such as Precision Threads are running.
-
-The default maximum phase slew rate is:
-
-```text
-500 ppm
-```
-
-and can be configured.
-
-### Startup stepping
-
-Large initial offsets can take a long time to remove with a conservative slew rate.
-
-For startup/bootstrap, before monotonic deadline consumers begin operating, an application may explicitly request:
-
-```cpp
-ClockSynchronizationAdjustmentMode::
-    StepIfUnsynchronized
-```
-
-This permits the first accepted synchronization sample to perform an immediate phase correction. Later samples return to normal slewing.
-
-An explicit:
-
-```cpp
-ClockSynchronizationAdjustmentMode::
-    StepAlways
-```
-
-is also available, but it may move the System Clock forwards or backwards and should not normally be used while monotonic consumers are active.
-
-### Drift estimation and rate correction
-
-Once phase error is settled, successive accepted samples can estimate residual relative clock-rate error.
-
-The estimate is expressed in parts per million:
-
-```text
-EstimatedDriftPpm
-```
-
-and is applied continuously as a rate correction between synchronization exchanges.
-
-Drift learning is deliberately suspended while a significant phase slew is in progress so intentional phase correction is not mistaken for oscillator drift.
-
-The maximum learned drift correction, learning interval, filtering weights, and phase-learning threshold are configurable.
-
-### Configuration
-
-`ClockSynchronizationConfig` controls:
-
-```text
-MaximumRoundTripDelayNanoseconds
-MaximumSlewRatePpm
-MaximumDriftCorrectionPpm
-OffsetFilterWeight
-ClockFilterWindowSamples
-DriftFilterWeight
-DriftLearningPhaseThresholdNanoseconds
-MinimumDriftLearningIntervalNanoseconds
-SynchronizationToleranceNanoseconds
-MinimumSamplesForSynchronizedState
-MaximumSampleAgeNanoseconds
-```
-
-`ClockFilterWindowSamples` is a fixed-capacity NTP-style clock filter (clamped to 1–8 samples). Timing selects the recent exchange with the lowest round-trip delay before applying the exponential offset filter, because variable transport and callback residence time can only increase the observed path delay. Retained offsets are compensated for clock correction already applied since their capture, so an older low-delay observation does not become stale while the phase servo slews.
-
-For example:
-
-```cpp
-ClockSynchronizationConfig config;
-
-config.MaximumRoundTripDelayNanoseconds =
-    10000000ULL; // 10 ms
-
-config.MaximumSlewRatePpm =
-    500;
-
-config.SynchronizationToleranceNanoseconds =
-    500000ULL; // 0.5 ms
-
-SystemClock<>::GetInstance().
-    ConfigureSynchronization(
-        config
-    );
-```
-
-### Shared System Clock semantics
-
-Synchronization is owned by `SystemClockCore`, not by the typed facade.
-
-Therefore:
-
-```cpp
-SystemClock<DefaultClockTime>
-SystemClock<MyCustomTime>
-SystemClock<SerializableClockTime>
-```
-
-all observe exactly the same disciplined System Clock on the device.
-
-### SetTime and synchronization
-
-Calling:
-
-```cpp
-SystemClock<TTime>::SetTime(...)
-```
-
-is an explicit hard rebase.
-
-It resets the current synchronization/discipline state because previously measured phase and drift estimates are no longer valid after the rebase.
-
-### Transport integration
-
-A future ESP-NOW implementation can capture timestamps through the synchronization-target interface and submit complete samples without requiring any ESP-NOW-specific functionality inside ESPressio Timing.
-
-The same Timing API can equally be used by UDP, Ethernet, CAN, serial, LoRa, or another transport.
-
-See:
-
-```text
-examples/ClockSynchronization
-```
-
-## Core Design
-
-Timing separates three concerns:
-
-```text
-Raw time source
-      |
-      v
-ClockTick / TTick
-      |
-      | timing arithmetic
-      v
-Clock implementation
-      |
-      v
-TimeTraits<TTime>
-      |
-      v
-Public TTime representation
-```
-
-Raw timing state remains numeric and independent of serialization.
-
-The public representation is selected at compile time.
-
-## Default Time Representation
-
-The default is:
-
-```cpp
-using DefaultClockTime =
-    ESPressio::Units::Time<
-        uint64_t,
-        ESPressio::Units::Nano
-    >;
-```
-
-Therefore:
-
-```cpp
-StopwatchClock<> stopwatch;
-```
-
-uses ordinary, non-Serializable ESPressio Units.
-
-Timing itself does not depend on ESPressio Serializable.
-
-## Selecting Another Time Representation
-
-Every clock and clock interface exposes its time representation as a template parameter:
-
-```cpp
-IClock<TTime>
-IClockSettable<TTime>
-IStopwatchClock<TTime>
-ISystemClock<TTime>
-IRTCClock<TTime>
-
-StopwatchClock<TTime, TLockPolicy, TTick>
-SystemClock<TTime, TLockPolicy, TTick>
-RTCClockBase<TTime, TLockPolicy, TTick>
-GPTimerClock<TTime, TLockPolicy, TTick>
-```
-
-For example:
-
-```cpp
-using SerializableClockTime =
-    Units::SerializableNanoSeconds<
-        uint64_t
-    >;
-
-StopwatchClock<
-    SerializableClockTime
-> stopwatch;
-
-SerializableClockTime elapsed =
-    stopwatch.GetTime();
-```
-
-Only that consuming project needs to include the Serializable Unit header and depend upon ESPressio Serializable.
-
-The clock itself is not serialized; its returned `TimeType` is serializable.
-
-## Why Clocks Are Not Called "SerializableClock"
-
-A monotonic clock contains runtime/hardware state such as source ticks and synchronization epochs. Persisting that internal state across restart is generally not meaningful.
-
-For example, restoring an old monotonic `_startTime` after reboot would be incorrect.
-
-If persistent stopwatch/clock state is required, it should be represented by an explicit snapshot DTO with defined restoration semantics rather than by serializing the live clock implementation.
-
-## System Clock Singleton Semantics
-
-`SystemClock<TTime>` is a typed facade over one non-templated-by-time
-`SystemClockCore<TLockPolicy, TTick>` singleton.
-
-This is important because the system clock represents one global timeline.
-Different public time representations must not create independent clocks.
-
-For example:
-
-```cpp
-using SerializableClockTime =
-    Units::SerializableNanoSeconds<uint64_t>;
-
-auto& ordinary =
-    SystemClock<
-        DefaultClockTime
-    >::GetInstance();
-
-auto& serializable =
-    SystemClock<
-        SerializableClockTime
-    >::GetInstance();
-```
-
-These are two typed views over the **same underlying SystemClockCore**.
-
-Therefore:
-
-```cpp
-ordinary.SetTime(...);
-
-auto serializedTime =
-    serializable.GetTime();
-```
-
-observes the same clock state.
-
-Callbacks are also stored by the shared core in raw nanosecond ticks. A callback
-registered through one `SystemClock<TTime>` specialization can be serviced by
-calling `Update()` through another specialization.
-
-The tiny typed facade objects themselves are template specializations, but they
-contain no independent timeline or scheduler state.
-
-This singleton-core/view distinction applies specifically to `SystemClock`.
-User-created clocks such as `StopwatchClock<TTime>` continue to own their own raw
-timing state because separate stopwatch instances are semantically meaningful.
-
-## TimeTraits
-
-`TimeTraits<TTime>` connects the public representation to Timing's internal nanosecond domain.
-
-The default specialization supports types exposing:
-
-```text
-value
-orderOfMagnitude
-```
-
-and constructible from:
-
-```cpp
-TTime(value, magnitude)
-```
-
-This includes ordinary ESPressio `Time` types and their optional Serializable wrappers.
-
-Unrelated representations can be integrated by explicitly specializing:
-
-```cpp
-template<>
-struct ESPressio::Timing::TimeTraits<MyTime> {
-    template<typename TTick>
-    static MyTime FromNanoseconds(
-        TTick nanoseconds,
-        TTick resolution
-    );
-
-    template<typename TTick>
-    static TTick ToNanoseconds(
-        const MyTime& time
-    );
-};
-```
-
-## Raw Tick Type
-
-The storage/arithmetic type is separately configurable:
-
-```cpp
-StopwatchClock<
-    MyTime,
-    ThreadSafeLockPolicy,
-    uint64_t
->
-```
-
-The default is:
-
-```cpp
-ClockTick
-```
-
-which is currently `uint64_t`.
-
-Serialization properties of `TTime` therefore do not leak into the timing algorithm or raw clock storage.
-
-## Interfaces
-
-Interfaces are now generic:
-
-```cpp
-IClock<DefaultClockTime>
-IClock<MyApplicationTime>
-```
-
-These are intentionally distinct C++ contracts.
-
-Generic consuming code should use the clock's nested type:
-
-```cpp
-template<typename TClock>
-void ReadClock(
-    TClock& clock
-) {
-    typename TClock::TimeType now =
-        clock.GetTime();
+using namespace ESPressio::Timing;
+void BootstrapClock() {
+    auto& clock = SystemClock<>::GetInstance();
+    auto rebased = clock.TrySetTime(DefaultClockTime(0, ESPressio::Units::Nano));
+    if (rebased != ClockConfigurationStatus::Success) return;
+    clock.SealContinuity();
+    auto refused = clock.TrySetTime(DefaultClockTime(1, ESPressio::Units::Base));
+    // refused == ContinuitySealed; time and synchronization state are unchanged.
+    auto origin = clock.CaptureQualifiedTime();
+    auto model = clock.GetClockModelSnapshot();
+    (void)refused; (void)origin; (void)model;
 }
 ```
 
-rather than assuming a global `ClockTime`.
+`ISystemClock<TTime>` exposes status-returning `TrySetTime`, `SealContinuity` and
+`IsContinuitySealed`. It does not derive from unconditional `IClockSettable`.
+Explicit rebases are allowed only before sealing. Synchronization always publishes
+a model anchored at the old model's current value and removes phase error by slew.
+Frequency correction plus slew has a strictly positive effective rate. The integer
+reader rounds the combined active rate once to prevent nanosecond backward jumps.
+There is no synchronization step mode or runtime unseal/reset escape hatch.
 
-## Thread Safety
+`CaptureQualifiedTime()` returns one `{Nanoseconds, Reliability}` snapshot suitable
+for semantic origin/truth capture before a family-owned bounded wait. Receivers
+preserve those fields; they do not recompute or upgrade the origin's reliability.
 
-The lock policy remains a compile-time parameter.
-
-The normal default is:
-
-```cpp
-ThreadSafeLockPolicy
-```
-
-For single-context applications:
-
-```cpp
-SingleThreadedStopwatchClock<MyTime>
-SingleThreadedSystemClock<MyTime>
-SingleThreadedRTCClockBase<MyTime>
-```
-
-use `NoLockPolicy`.
-
-## Dependency Model
-
-Ordinary Timing project:
-
-```text
-Application
-    |
-    +-- ESPressio-Timing
-            |
-            +-- ESPressio-Units
-```
-
-No ESPressio Serializable dependency is required.
-
-Application selecting a Serializable Unit as `TTime`:
-
-```text
-Application
-    |
-    +-- ESPressio-Timing
-    |
-    +-- ESPressio-Units
-    |       |
-    |       +-- optional *_Serializable.hpp
-    |
-    +-- ESPressio-Serializable
-```
-
-Timing remains unaware of ESPressio Serializable.
-
-## Migration From 1.x
-
-Version 1.x:
+## Complete capture evidence
 
 ```cpp
-StopwatchClock stopwatch(true);
-ClockTime elapsed =
-    stopwatch.GetTime();
-
-const IClock& clock =
-    stopwatch;
+#include <ESPressio_TimingSystemClock.hpp>
+using namespace ESPressio::Timing;
+ClockConfigurationStatus ConfigureReference(IClockSynchronizationTarget& target) {
+    ClockSynchronizationProfile profile;
+    profile.MinimumAcceptedSamples = 4;
+    profile.MinimumRegressionObservationSpanNanoseconds = 500000000;
+    profile.ResidualFrequencyErrorBoundPpm = 50; // requires validation on the target
+    auto configured = target.ConfigureSynchronization(profile);
+    if (configured != ClockConfigurationStatus::Success) return configured;
+    return target.SelectSynchronizationReference(1); // trusted lineage token from orchestration
+}
+ClockSynchronizationResult SubmitExchange(
+    IClockSynchronizationTarget& target,
+    ClockTimestampCapture<> t1, ClockTimestampCapture<> t2,
+    ClockTimestampCapture<> t3, ClockTimestampCapture<> t4,
+    std::uint64_t reference, TimeReliability referenceQuality,
+    ClockUncertainty referenceUncertainty) {
+    ClockSynchronizationObservation<> observation;
+    observation.T1 = t1; observation.T2 = t2;
+    observation.T3 = t3; observation.T4 = t4;
+    observation.ReferenceIdentity = reference;
+    observation.ReferenceReliability = referenceQuality;
+    observation.ReferenceUncertainty = referenceUncertainty;
+    return target.SubmitSynchronizationObservation(observation);
+}
 ```
 
-Version 2.x:
+T1 is local request transmit, T2 remote request receive, T3 remote response transmit,
+and T4 local response receive. Each `ClockTimestampCapture` preserves System and raw
+monotonic coordinates plus capture quality and uncertainty. The observation
+coordinate is the local raw-monotonic midpoint. Timing calculates the locked
+four-System-timestamp offset and RTT; transports do not perform discipline.
+
+The default capture is deliberately acquisition-only:
 
 ```cpp
-StopwatchClock<> stopwatch(true);
-
-DefaultClockTime elapsed =
-    stopwatch.GetTime();
-
-const IClock<
-    DefaultClockTime
->& clock =
-    stopwatch;
+#include <ESPressio_TimingSystemClock.hpp>
+void CaptureWithoutLatencyProof() {
+    auto& clock = ESPressio::Timing::SystemClock<>::GetInstance();
+    auto capture = clock.CaptureSynchronizationTimestamp();
+    // SoftwareUnbounded and unknown uncertainty cannot support qualified time.
+    (void)capture;
+}
 ```
 
-Generic code should preferably use:
+A provider with a validated finite capture bound may pass Hardware or
+SoftwareBounded and `ClockUncertainty::Known(bound)`. Zero/invalid capture quality
+is rejected. Unknown/unbounded error can support acquisition and diagnostics but
+cannot certify Synchronized/Holdover. A later worker-service timestamp must not be
+presented as a precise earlier RX/TX boundary. Providers retain the model appropriate
+to a raw hardware capture when converting it; they must never reconstruct an old
+System timestamp from a later mutable System time minus elapsed duration.
+
+The conservative observation bound is reference uncertainty + ceil(RTT/2) +
+ceil(sum of the four capture bounds / 2). Only an explicit trusted calibrated path
+proof may replace ceil(RTT/2) with a smaller asymmetry bound. Invalid ordering,
+impossible processing elapsed time, arithmetic overflow, unknown reference token,
+invalid quality, excessive bounded capture error and RTT above the finite ceiling
+are rejected. Zero is not an unlimited RTT setting.
+
+## Fixed affine estimation and safety
+
+`ClockRegression<N>` and `ClockDiscipline<N>` require compile-time N >= 4. The System
+core uses N=8. The first uncertainty-weighted affine least-squares fit determines
+residual inclusion, followed by exactly one second fit. There is no iterative
+solver, dynamic window, minimum-delay winner or successive-pair drift learner.
+Coordinates are centered near the newest observation. Original measured offset
+is retained; capture-consistent reference-minus-monotonic normalization prevents
+local servo changes between exchanges from appearing as oscillator drift.
+
+`ClockDiscipline` stages one fixed candidate window before acceptance. A rejected
+outlier leaves the retained window and published mapping intact. Reference changes
+clear evidence and return to acquisition while preserving current public time.
+Invalid profile configuration changes nothing. The independent physical
+`ResidualFrequencyErrorBoundPpm` is never reduced by regression confidence or
+sample count. Quantized/clipped correction error and numerical/source guards are
+added conservatively.
+
+At each accepted anchor the safety budget includes observation uncertainty,
+retained inlier residuals, the full unresolved phase correction and quantization.
+It grows with elapsed raw monotonic time. Slew settlement alone cannot make the
+clock more certain: only accepted new evidence can establish a tighter anchor.
 
 ```cpp
-typename TClock::TimeType
+#include <ESPressio_ClockDiscipline.hpp>
+void InspectBoundedDiscipline() {
+    ESPressio::Timing::ClockDiscipline<8> discipline;
+    ESPressio::Timing::ClockSynchronizationProfile profile;
+    auto configured = discipline.Configure(profile, 0);
+    auto reference = discipline.SelectReference(1, 0);
+    discipline.SealContinuity();
+    auto status = discipline.GetStatus(0);
+    auto snapshot = discipline.Model();
+    (void)configured; (void)reference; (void)status; (void)snapshot;
+}
 ```
 
-instead of naming `DefaultClockTime`.
+The discipline owns N numeric observation records and one compact model/status.
+Submission uses a fixed N-record candidate plus bounded regression arrays; no
+allocation or runtime resizing occurs. `ClockModelSnapshot::Evaluate` uses integer
+quotient/remainder arithmetic without a target-dependent 128-bit requirement.
+Optional Observable diagnostics and general scheduled callback closures are
+separate from this deterministic model. Ordinary clock/status/model reads never
+invoke those mechanisms.
 
-## PlatformIO
+## Qualification and adaptive deadlines
 
-During the release restructuring, consume Timing directly from `main`:
+| Label | Meaning |
+|---|---|
+| Unqualified (0) | No qualified model and no active acquisition. |
+| Acquiring (1) | Active acquisition without sufficient maturity or uncertainty headroom. |
+| Synchronized (2) | Mature, qualified reference evidence; current uncertainty strictly below 1 ms. |
+| Holdover (3) | Previously synchronized, fresh reference temporarily absent, still strictly below 1 ms. |
 
-```ini
-lib_deps =
-    https://github.com/ESPressio-Development-Platform/ESPressio-Timing.git#main
+These labels are not an ordinal score. Entry from Acquiring requires at least four
+inliers, the configured positive observation span, a qualified reference and
+uncertainty <=500 us. Reaching exactly 1,000,000 ns immediately removes the
+qualified claim. With active reacquisition the result is Acquiring; otherwise it
+is Unqualified. Recovery after expiry must pass the <=500 us entry gate again.
+
+```cpp
+#include <ESPressio_TimingSystemClock.hpp>
+void ServiceReferenceChange() {
+    auto& clock = ESPressio::Timing::SystemClock<>::GetInstance();
+    clock.SetSynchronizationActivity(true, false); // qualified model enters bounded Holdover
+    auto status = clock.GetSynchronizationStatus();
+    if (status.HasSynchronizationDeadline) {
+        // The transport schedules against this raw monotonic deadline, using
+        // its own wake/deadline service and conservative airtime/capture budget.
+        auto deadline = status.NextRequiredSynchronizationMonotonic;
+        (void)deadline;
+    }
+    clock.RecordSynchronizationDeadlineMiss(); // call only for an actual scheduler miss
+    clock.SelectSynchronizationReference(2);   // new lineage; old samples are discarded
+    clock.Update();                           // explicit diagnostics/callback service
+}
 ```
 
-A project selecting Serializable Units additionally declares ESPressio Units and ESPressio Serializable from their `main` branches. Timing does not acquire a direct Serializable dependency.
+The deadline derives from uncertainty headroom, operational guard and physical
+residual drift, capped by the profile's explicit cadence limits and fresh-sample
+age. Too little headroom can make the deadline immediately due; minimum cadence
+never postpones work past the safe bound. Acquisition uses its configured cadence.
+There is no universal 1 Hz refresh, hidden timer task or polling loop. Radio normally
+owns the atomic direct-neighbor exchange, Mesh owns reference/topology selection,
+and Timing owns the estimator and uncertainty. Clock traffic still uses protected
+capacity and the shared fair transport scheduler.
+
+Status reports reference identity, last accepted raw-monotonic coordinate, sample
+age, RTT, measured/model residuals, frequency correction, physical drift bound,
+current uncertainty, pending phase, inlier/count/span facts, rejection counters,
+capture quality counters, scheduler misses and the next required deadline.
+Numeric profile defaults and host tests are not hardware sub-ms certification.
+Certification requires validated capture/oscillator bounds under the specified
+hardware, temperature, power, saturation and multi-hop conditions.
+
+## General clock representations and observers
+
+`IClock<TTime>` returns a unit-aware value. `TimeTraits<TTime>` converts to/from the
+internal nanosecond coordinate while preserving source resolution. The default is
+`Units::Time<uint64_t, Units::Nano>`; optional Serializable Units representations
+use the same algorithms and shared System core. `StopwatchClock`, `RTCClockBase`
+and `GPTimerClock` retain their explicit settable/start/stop/RTC semantics.
+
+`MonotonicClock` remains independent of System rebasing/slewing. Shared
+`HighResolutionTimeSource` uses the installed System counter provider, with a
+System monotonic fallback when unavailable at initialization. The explicit
+provider-backed `GPTimerTimeSource`/`GPTimerClock` surfaces report availability and
+`PlatformResult`; Timing includes no ESP-IDF timer headers or native status types.
+Use `GetIsUsingHighResolutionCounter()` for shared-source diagnostics.
+
+System, Stopwatch and RTC observers remain explicit-operation diagnostics.
+`OnSystemClockSynchronized` is emitted only on entry into that state; synchronization
+before/after values are equal because no step occurs. `Update` services due
+callbacks and reliability transitions, including expiry first noticed by a getter.
+Scheduled callback capacity is fixed by `ESPRESSIO_TIMING_MAX_CALLBACKS`; arbitrary
+callback exceptions are reported then propagated. Clock getters never notify,
+even when returning an expired reliability label.
+
+Build native tests with `cmake -S tests -B build
+-DESPRESSIO_SYSTEM_SOURCE_DIR=/path/to/ESPressio-System`, then `cmake --build build`
+and `ctest --test-dir build --output-on-failure`. The suite retains generic clocks,
+provider failures and concurrency while replacing obsolete synchronization tests.
+See [K1/K2 validation](docs/K1_K2_VALIDATION.md) for classification and evidence.

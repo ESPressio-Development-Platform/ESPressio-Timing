@@ -1,37 +1,20 @@
 #pragma once
-
 #include <functional>
-
 #include "ESPressio_IClock.hpp"
-
-namespace ESPressio {
-
-    namespace Timing {
-
-        /// <summary>Settable system clock capable of scheduling callbacks against clock time.</summary>
-
-template<typename TTime = DefaultClockTime>
-        class ISystemClock :
-            public virtual IClockSettable<TTime> {
-
-            public:
-                using TimeType = TTime;
-                /// <summary>Callable invoked when a scheduled system-clock time is reached.</summary>
-                using ClockCallback =
-                    std::function<void()>;
-
-                /// <summary>Schedules a callback for the supplied clock time.</summary>
-                virtual void SetCallback(
-                    const TTime& time,
-                    ClockCallback callback
-                ) = 0;
-
-                /// <summary>Processes due callbacks and implementation-specific clock maintenance.</summary>
-                virtual void Update() = 0;
-                /// <summary>Removes all pending scheduled callbacks.</summary>
-                virtual void ClearCallbacks() = 0;
-        };
-
-    }
-
+#include "ESPressio_ClockSynchronization.hpp"
+namespace ESPressio::Timing {
+/// <summary>Continuous System clock with an explicit bootstrap-only rebase and separately serviced callbacks.</summary>
+/// <remarks>It cannot implement unconditional IClockSettable after the one-way continuity seal.</remarks>
+template<class TTime=DefaultClockTime> class ISystemClock : public virtual IClock<TTime> {
+public:
+    using TimeType=TTime;
+    using ClockCallback=std::function<void()>;
+    virtual ClockConfigurationStatus TrySetTime(const TTime& time)=0;
+    virtual void SealContinuity()=0;
+    virtual bool IsContinuitySealed() const=0;
+    virtual void SetCallback(const TTime& time,ClockCallback callback)=0;
+    /// <summary>Explicitly services due callbacks and diagnostic transitions; ordinary reads never do this work.</summary>
+    virtual void Update()=0;
+    virtual void ClearCallbacks()=0;
+};
 }

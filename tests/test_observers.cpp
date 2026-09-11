@@ -3,6 +3,7 @@
 #include <stdexcept>
 
 #include <ESPressio_Timing.hpp>
+#include "ClockTestEvidence.hpp"
 
 using namespace ESPressio;
 using namespace ESPressio::Timing;
@@ -36,19 +37,19 @@ public:
         ++setCount; before=previous; after=next; diff=difference;
     }
     void OnSystemClockSynchronizationSampleAccepted(uint64_t previous, uint64_t next, int64_t difference,
-        const ClockSynchronizationResult<uint64_t>&, const ClockSynchronizationStatus<uint64_t>&) override {
+        const ClockSynchronizationResult&, const ClockSynchronizationStatus&) override {
         ++acceptedCount; before=previous; after=next; diff=difference;
     }
     void OnSystemClockSynchronized(uint64_t previous, uint64_t next, int64_t difference,
-        const ClockSynchronizationResult<uint64_t>&, const ClockSynchronizationStatus<uint64_t>&) override {
+        const ClockSynchronizationResult&, const ClockSynchronizationStatus&) override {
         ++synchronizedCount; before=previous; after=next; diff=difference;
     }
-    void OnSystemClockSynchronizationSampleRejected(const ClockSynchronizationResult<uint64_t>&,
-        const ClockSynchronizationStatus<uint64_t>&) override { ++rejectedCount; }
-    void OnSystemClockSynchronizationStateChanged(ClockSynchronizationState, ClockSynchronizationState,
-        const ClockSynchronizationStatus<uint64_t>&) override { ++stateChangedCount; }
-    void OnSystemClockSynchronizationReset(const ClockSynchronizationStatus<uint64_t>&,
-        const ClockSynchronizationStatus<uint64_t>&) override { ++resetCount; }
+    void OnSystemClockSynchronizationSampleRejected(const ClockSynchronizationResult&,
+        const ClockSynchronizationStatus&) override { ++rejectedCount; }
+    void OnSystemClockSynchronizationStateChanged(TimeReliability, TimeReliability,
+        const ClockSynchronizationStatus&) override { ++stateChangedCount; }
+    void OnSystemClockSynchronizationReset(const ClockSynchronizationStatus&,
+        const ClockSynchronizationStatus&) override { ++resetCount; }
     void OnSystemClockCallbackScheduled(uint64_t) override { ++callbackScheduledCount; }
     void OnSystemClockCallbackExecuted(uint64_t, uint64_t, int64_t) override { ++callbackExecutedCount; }
     void OnSystemClockCallbackExecutionFailed(uint64_t, uint64_t, int64_t, std::exception_ptr) override { ++callbackFailedCount; }
@@ -99,72 +100,41 @@ int main() {
     SystemObserver systemObserver;
     auto systemHandle = clock.RegisterObserver(&systemObserver);
 
-    clock.SetTime(DefaultClockTime(1000, Units::Nano));
+    clock.TrySetTime(DefaultClockTime(1000, Units::Nano));
     assert(systemObserver.setCount == 1);
     assert(systemObserver.after == 1000);
 
-    ClockSynchronizationConfig cfg;
-    cfg.OffsetFilterWeight = 1.0;
-    cfg.MinimumSamplesForSynchronizedState = 1;
-    clock.ConfigureSynchronization(cfg);
-
-    const uint64_t t1 = clock.GetSynchronizationTimestampNanoseconds();
-    ClockSynchronizationSample<uint64_t> sample;
-    sample.LocalRequestTransmitTime=t1;
-    sample.RemoteRequestReceiveTime=t1+5000;
-    sample.RemoteResponseTransmitTime=t1+5000;
-    sample.LocalResponseReceiveTime=t1;
-
-    auto result = clock.SubmitSynchronizationSample(sample, ClockSynchronizationAdjustmentMode::StepIfUnsynchronized);
-    assert(result.Accepted);
-    assert(systemObserver.acceptedCount == 1);
-    assert(systemObserver.synchronizedCount == 1);
-    assert(systemObserver.after - systemObserver.before == 5000);
-    assert(systemObserver.diff == 5000);
-    assert(systemObserver.stateChangedCount >= 1);
-
-    ClockSynchronizationSample<uint64_t> bad = sample;
-    bad.RemoteResponseTransmitTime = bad.RemoteRequestReceiveTime - 1;
-    bad.LocalResponseReceiveTime = bad.LocalRequestTransmitTime;
-    auto rejected = clock.SubmitSynchronizationSample(bad);
-    assert(!rejected.Accepted);
-    assert(systemObserver.rejectedCount == 1);
-
+    ClockSynchronizationProfile cfg;
+    assert(clock.ConfigureSynchronization(cfg)==ClockConfigurationStatus::Success);
+    assert(clock.SelectSynchronizationReference(1)==ClockConfigurationStatus::Success);
+    clock.SealContinuity();
+    for (unsigned i=0;i<4;++i) {
+        source.ticks=1000000000ull+i*250000000ull;
+        const auto model=clock.GetClockModelSnapshot();
+        const auto sample=ClockTest::Observation(source.ticks,1000,10000,1,100,&model);
+        source.ticks+=10000;
+        assert(clock.SubmitSynchronizationObservation(sample).Accepted);
+    }
+    assert(systemObserver.acceptedCount==4 && systemObserver.synchronizedCount==1);
+    assert(systemObserver.diff==0); // Synchronization never steps, including before maturity.
+    auto bad=ClockTest::Observation(source.ticks+1000000);
+    bad.T1.Quality=ClockCaptureQuality::Invalid;
+    assert(!clock.SubmitSynchronizationObservation(bad).Accepted);
+    assert(systemObserver.rejectedCount==1);
+    const int changes=systemObserver.stateChangedCount;
+    source.ticks+=30000000000ull;
+    for (unsigned i=0;i<10;++i) {
+        (void)clock.GetTime(); (void)clock.CaptureQualifiedTime(); (void)clock.GetSynchronizationStatus();
+    }
+    assert(systemObserver.stateChangedCount==changes); // Even qualification expiry cannot notify from reads.
+    clock.Update(); assert(systemObserver.stateChangedCount==changes+1);
     bool callbackRan=false;
-    const auto now = clock.GetSynchronizationTimestampNanoseconds();
-    assert(clock.TrySetCallback(DefaultClockTime(now, Units::Nano), [&]{ callbackRan=true; }));
-    assert(systemObserver.callbackScheduledCount == 1);
-    clock.Update();
-    assert(callbackRan);
-    assert(systemObserver.callbackExecutedCount == 1);
-
-    bool caught=false;
-    const auto now2 = clock.GetSynchronizationTimestampNanoseconds();
-    assert(clock.TrySetCallback(DefaultClockTime(now2, Units::Nano), []{ throw std::runtime_error("boom"); }));
-    try { clock.Update(); } catch (const std::runtime_error&) { caught=true; }
-    assert(caught);
-    assert(systemObserver.callbackFailedCount == 1);
-
-    /*
-     * A slew can reach Synchronized later as the clock advances. A normal
-     * GetTime() remains silent except for that genuine state transition.
-     */
-    clock.ResetSynchronization();
-    cfg.MaximumSlewRatePpm = 1000000; // settle quickly in this host test
-    cfg.SynchronizationToleranceNanoseconds = 1;
-    clock.ConfigureSynchronization(cfg);
-
-    const int stateChangesBeforeSlew = systemObserver.stateChangedCount;
-    const uint64_t slewT1 = clock.GetSynchronizationTimestampNanoseconds();
-    ClockSynchronizationSample<uint64_t> slewSample;
-    slewSample.LocalRequestTransmitTime = slewT1;
-    slewSample.RemoteRequestReceiveTime = slewT1 + 5000;
-    slewSample.RemoteResponseTransmitTime = slewT1 + 5000;
-    slewSample.LocalResponseReceiveTime = slewT1;
-    assert(clock.SubmitSynchronizationSample(slewSample).Accepted);
-    source.ticks += 10000;
-    (void)clock.GetTime();
-    assert(systemObserver.stateChangedCount > stateChangesBeforeSlew);
+    auto now=clock.CaptureQualifiedTime().Nanoseconds;
+    assert(clock.TrySetCallback(DefaultClockTime(now,Units::Nano),[&]{callbackRan=true;}));
+    clock.Update(); assert(callbackRan && systemObserver.callbackExecutedCount==1);
+    assert(clock.TrySetCallback(DefaultClockTime(now,Units::Nano),[]{throw std::runtime_error("boom");}));
+    bool caught=false; try { clock.Update(); } catch (const std::runtime_error&) { caught=true; }
+    assert(caught && systemObserver.callbackFailedCount==1);
 
     StopwatchClock<DefaultClockTime, NoLockPolicy> stopwatch(false, &source);
     StopwatchObserver stopwatchObserver;

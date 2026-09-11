@@ -5,7 +5,7 @@ using namespace ESPressio::Timing;
 
 #if ESPRESSIO_TIMING_HAS_GPTIMER
 
-GPTimerClock stopwatch(
+GPTimerClock<> stopwatch(
     true,
     ESPRESSIO_TIMING_GPTIMER_DEFAULT_RESOLUTION_HZ
 );
@@ -18,11 +18,11 @@ void setup() {
     #if ESPRESSIO_TIMING_HAS_GPTIMER
         if (!stopwatch.GetIsAvailable()) {
             Serial.print("GPTimer initialization failed: ");
-            Serial.println(stopwatch.GetInitializationResult());
+            Serial.println(static_cast<unsigned>(stopwatch.GetInitializationResult().Status));
         }
     #else
         Serial.println(
-            "GPTimer requires ESP32 with the ESP-IDF 5.x GPTimer driver"
+            "The selected build disables the generic counter-backed clock surface"
         );
     #endif
 }
@@ -30,7 +30,7 @@ void setup() {
 void loop() {
     #if ESPRESSIO_TIMING_HAS_GPTIMER
         if (stopwatch.GetIsAvailable()) {
-            const ClockTime elapsed = stopwatch.GetTime();
+            const DefaultClockTime elapsed = stopwatch.GetTime();
             Serial.print("Elapsed: ");
             Serial.println(elapsed.AsString());
         }

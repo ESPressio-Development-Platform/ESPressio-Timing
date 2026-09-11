@@ -95,11 +95,6 @@ template<typename TLockPolicy>
 #endif
         }
 
-        /// <summary>Compatibility alias for <c>GetIsUsingHighResolutionCounter()</c>.</summary>
-        bool GetIsUsingGPTimer() const {
-            return GetIsUsingHighResolutionCounter();
-        }
-
         /// <summary>Returns the process-wide singleton instance for this lock-policy specialization.</summary>
         static HighResolutionTimeSourceT* GetInstance() {
             static HighResolutionTimeSourceT instance;
